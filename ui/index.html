@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScamShield AI - Honeypot Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🛡️</span>
+                <h1>ScamShield AI</h1>
+                <span class="badge">Honeypot Dashboard</span>
+            </div>
+            <div class="header-right">
+                <div class="api-status" id="apiStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <button class="btn btn-secondary" onclick="checkHealth()">Refresh Status</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Panel - Chat Interface -->
+            <section class="panel chat-panel">
+                <div class="panel-header">
+                    <h2>💬 Live Conversation</h2>
+                    <div class="session-info">
+                        <span id="sessionId">No active session</span>
+                        <button class="btn btn-small" onclick="newSession()">New Session</button>
+                    </div>
+                </div>
+                
+                <div class="chat-container" id="chatContainer">
+                    <div class="chat-welcome">
+                        <div class="welcome-icon">🎭</div>
+                        <h3>Test the Honeypot Agent</h3>
+                        <p>Send a scam message to see how the AI agent responds and extracts intelligence.</p>
+                        <div class="example-messages">
+                            <p><strong>Try these examples:</strong></p>
+                            <button class="example-btn" onclick="sendExample(0)">🎰 Lottery Scam</button>
+                            <button class="example-btn" onclick="sendExample(1)">🏦 Bank Fraud</button>
+                            <button class="example-btn" onclick="sendExample(2)">👮 Police Threat</button>
+                            <button class="example-btn" onclick="sendExample(3)">📱 UPI Scam</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="Type a scam message to test (e.g., 'You won 10 lakh! Send OTP now!')"
+                            rows="2"
+                            onkeydown="handleKeyDown(event)"
+                        ></textarea>
+                        <button class="send-btn" onclick="sendMessage()" id="sendBtn">
+                            <span>Send</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="input-hint">
+                        Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel - Intelligence & Stats -->
+            <aside class="panel intel-panel">
+                <!-- Detection Result -->
+                <div class="intel-section">
+                    <h3>🎯 Detection Result</h3>
+                    <div class="detection-result" id="detectionResult">
+                        <div class="no-data">Send a message to see detection results</div>
+                    </div>
+                </div>
+
+                <!-- Extracted Intelligence -->
+                <div class="intel-section">
+                    <h3>📊 Extracted Intelligence</h3>
+                    <div class="intel-grid" id="intelGrid">
+                        <div class="intel-card">
+                            <div class="intel-icon">💳</div>
+                            <div class="intel-label">UPI IDs</div>
+                            <div class="intel-value" id="upiIds">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">🏦</div>
+                            <div class="intel-label">Bank Accounts</div>
+                            <div class="intel-value" id="bankAccounts">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">🔢</div>
+                            <div class="intel-label">IFSC Codes</div>
+                            <div class="intel-value" id="ifscCodes">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">📱</div>
+                            <div class="intel-label">Phone Numbers</div>
+                            <div class="intel-value" id="phoneNumbers">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">🔗</div>
+                            <div class="intel-label">Phishing Links</div>
+                            <div class="intel-value" id="phishingLinks">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">📈</div>
+                            <div class="intel-label">Confidence</div>
+                            <div class="intel-value" id="extractionConfidence">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Info -->
+                <div class="intel-section">
+                    <h3>🤖 Agent Status</h3>
+                    <div class="agent-info" id="agentInfo">
+                        <div class="agent-stat">
+                            <span class="stat-label">Persona</span>
+                            <span class="stat-value" id="agentPersona">-</span>
+                        </div>
+                        <div class="agent-stat">
+                            <span class="stat-label">Strategy</span>
+                            <span class="stat-value" id="agentStrategy">-</span>
+                        </div>
+                        <div class="agent-stat">
+                            <span class="stat-label">Turn Count</span>
+                            <span class="stat-value" id="turnCount">0 / 20</span>
+                        </div>
+                        <div class="agent-stat">
+                            <span class="stat-label">Language</span>
+                            <span class="stat-value" id="detectedLanguage">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Health -->
+                <div class="intel-section">
+                    <h3>🔧 System Health</h3>
+                    <div class="health-grid" id="healthGrid">
+                        <div class="health-item">
+                            <span class="health-label">Groq LLM</span>
+                            <span class="health-status" id="healthGroq">-</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">PostgreSQL</span>
+                            <span class="health-status" id="healthPostgres">-</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">Redis</span>
+                            <span class="health-status" id="healthRedis">-</span>
+                        </div>
+                        <div class="health-item">
+                            <span class="health-label">ML Models</span>
+                            <span class="health-status" id="healthModels">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Report -->
+                <div class="intel-section">
+                    <button class="btn btn-primary btn-full" onclick="exportReport()">
+                        📄 Export Full Report
+                    </button>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-left">
+                <span>ScamShield AI v1.0.0</span>
+                <span class="separator">|</span>
+                <span>API: <a href="http://127.0.0.1:8000/docs" target="_blank">Swagger Docs</a></span>
+            </div>
+            <div class="footer-right">
+                <span id="responseTime">-</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="modal" id="reportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📋 Intelligence Report</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="reportContent">
+                <!-- Report content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+                <button class="btn btn-primary" onclick="downloadReport()">Download JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
