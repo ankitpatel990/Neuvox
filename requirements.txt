@@ -1,16 +1,15 @@
-# ScamShield AI - Dependencies
+# ScamShield AI - Dependencies (Hugging Face Spaces optimized)
 # Version: 1.0.0
+
+# =====================================================
+# PyTorch CPU-only (must be first for proper resolution)
+# =====================================================
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.0+cpu
 
 # =====================================================
 # Core AI/ML Models
 # =====================================================
-#torch==2.1.0
-#transformers==4.35.0
-#sentence-transformers==2.2.2
-#spacy==3.7.2
-#huggingface_hub>=0.19.0  # For model downloads without transformers
-
-
 transformers==4.35.0
 sentence-transformers==2.2.2
 spacy==3.7.2
@@ -20,11 +19,11 @@ huggingface_hub>=0.16.4,<0.18
 # Agentic Framework (LangChain + LangGraph)
 # =====================================================
 langchain==0.1.0
-langchain-core>=0.1.0  # Core LangChain messages and utilities
+langchain-core>=0.1.0
 langgraph==0.0.20
 langchain-groq==0.0.1
-langsmith>=0.0.77  # Compatible with langchain 0.1.0
-groq>=0.4.0  # Groq API client
+langsmith>=0.0.77
+groq>=0.4.0
 
 # =====================================================
 # API Framework (FastAPI)
@@ -59,19 +58,4 @@ python-dotenv==1.0.0
 requests==2.31.0
 numpy==1.24.3
 pandas==2.0.3
-
-# =====================================================
-# Testing
-# =====================================================
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
 httpx==0.25.2
-
-# =====================================================
-# Development (optional)
-# =====================================================
-# black==23.11.0
-# isort==5.12.0
-# mypy==1.7.0
-# flake8==6.1.0
