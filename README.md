@@ -1,3 +1,14 @@
+---
+title: ScamShield AI
+emoji: 🛡️
+colorFrom: blue
+colorTo: red
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # ScamShield AI
 
 **Agentic Honeypot System for Scam Detection & Intelligence Extraction**
