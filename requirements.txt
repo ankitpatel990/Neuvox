@@ -4,11 +4,17 @@
 # =====================================================
 # Core AI/ML Models
 # =====================================================
-torch==2.1.0
+#torch==2.1.0
+#transformers==4.35.0
+#sentence-transformers==2.2.2
+#spacy==3.7.2
+#huggingface_hub>=0.19.0  # For model downloads without transformers
+
+
 transformers==4.35.0
 sentence-transformers==2.2.2
 spacy==3.7.2
-huggingface_hub>=0.19.0  # For model downloads without transformers
+huggingface_hub>=0.16.4,<0.18
 
 # =====================================================
 # Agentic Framework (LangChain + LangGraph)
