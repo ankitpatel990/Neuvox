@@ -78,7 +78,7 @@ coverage.xml
 *.h5
 *.pkl
 *.joblib
-models/
+/models/
 chroma_data/
 chroma_data/
 *.onnx
