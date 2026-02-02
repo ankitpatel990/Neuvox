@@ -29,6 +29,7 @@ RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/release
 # Copy application code
 COPY app/ ./app/
 COPY scripts/ ./scripts/
+COPY ui/ ./ui/
 
 # Set environment variables
 ENV PYTHONPATH=/app
