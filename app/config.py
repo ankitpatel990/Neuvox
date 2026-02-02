@@ -86,6 +86,16 @@ class Settings:
         self.SPACY_MODEL: str = os.getenv("SPACY_MODEL", "en_core_web_sm")
         self.EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
         self.HUGGINGFACE_TOKEN: Optional[str] = os.getenv("HUGGINGFACE_TOKEN")
+        
+        # API Authentication (GUVI Hackathon Requirement)
+        self.API_KEY: Optional[str] = os.getenv("API_KEY")
+        
+        # GUVI Hackathon Integration
+        self.GUVI_CALLBACK_URL: Optional[str] = os.getenv(
+            "GUVI_CALLBACK_URL",
+            "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
+        )
+        self.GUVI_CALLBACK_ENABLED: bool = os.getenv("GUVI_CALLBACK_ENABLED", "true").lower() == "true"
     
     @property
     def is_production(self) -> bool:

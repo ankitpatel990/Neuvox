@@ -13,7 +13,12 @@ from app.api.schemas import (
     BatchResponse,
     SessionResponse,
     ErrorResponse,
+    GUVIEngageRequest,
+    GUVIMessageInput,
+    GUVIMetadata,
+    UnifiedEngageRequest,
 )
+from app.api.auth import verify_api_key, optional_api_key
 
 __all__ = [
     "router",
@@ -24,4 +29,10 @@ __all__ = [
     "BatchResponse",
     "SessionResponse",
     "ErrorResponse",
+    "GUVIEngageRequest",
+    "GUVIMessageInput",
+    "GUVIMetadata",
+    "UnifiedEngageRequest",
+    "verify_api_key",
+    "optional_api_key",
 ]

@@ -7,6 +7,7 @@ This module provides:
 - Metrics and monitoring
 - Logging configuration
 - Groq API client with rate limiting
+- GUVI hackathon integration callbacks
 """
 
 from app.utils.preprocessing import (
@@ -39,6 +40,12 @@ from app.utils.groq_client import (
     is_retryable_error,
     retry_with_backoff,
 )
+from app.utils.guvi_callback import (
+    send_final_result_to_guvi,
+    should_send_callback,
+    extract_suspicious_keywords,
+    generate_agent_notes,
+)
 
 __all__ = [
     # Preprocessing
@@ -69,4 +76,9 @@ __all__ = [
     "exponential_backoff",
     "is_retryable_error",
     "retry_with_backoff",
+    # GUVI Callback
+    "send_final_result_to_guvi",
+    "should_send_callback",
+    "extract_suspicious_keywords",
+    "generate_agent_notes",
 ]

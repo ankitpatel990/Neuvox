@@ -8,14 +8,19 @@ Acceptance Criteria:
 - AC-4.1.2: Returns 400 for invalid input
 - AC-4.1.3: Response matches schema
 - AC-4.1.5: Response time <2s (p95)
+
+GUVI Integration:
+- Supports GUVI's exact input format with nested message object
+- Includes x-api-key authentication
+- Sends callback to GUVI evaluation endpoint on completion
 """
 
-from typing import Optional, List
+from typing import Optional, List, Any, Dict, Union
 from datetime import datetime
 import uuid
 import time
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends, Body
 
 from app.api.schemas import (
     EngageRequest,
@@ -31,7 +36,9 @@ from app.api.schemas import (
     ResponseMetadata,
     HealthDependencies,
     BatchResultItem,
+    UnifiedEngageRequest,
 )
+from app.api.auth import verify_api_key
 from app.config import settings
 from app.utils.logger import get_logger
 
@@ -40,8 +47,8 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["honeypot"])
 
 
-@router.post("/honeypot/engage", response_model=EngageResponse)
-async def engage_honeypot(request: EngageRequest) -> EngageResponse:
+@router.post("/honeypot/engage", response_model=EngageResponse, dependencies=[Depends(verify_api_key)])
+async def engage_honeypot(request_body: Dict[str, Any] = Body(...)) -> EngageResponse:
     """
     Detect scam messages and engage scammers with AI personas to extract intelligence.
     
@@ -50,9 +57,14 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
     2. If scam detected, engages using an appropriate persona
     3. Extracts financial intelligence from the conversation
     4. Returns structured response with engagement and intelligence data
+    5. Sends callback to GUVI when engagement completes
+    
+    Supports both formats:
+    - Our format: {"message": "text", "session_id": "uuid", "language": "auto"}
+    - GUVI format: {"sessionId": "id", "message": {"sender": "scammer", "text": "..."}, ...}
     
     Args:
-        request: EngageRequest containing the message and optional session info
+        request_body: Request body (accepts both formats)
         
     Returns:
         EngageResponse with detection results, engagement, and extracted intelligence
@@ -73,32 +85,48 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
             get_session_state_with_fallback,
             save_session_state_with_fallback,
         )
+        from app.utils.guvi_callback import (
+            send_final_result_to_guvi,
+            should_send_callback,
+            extract_suspicious_keywords,
+            generate_agent_notes,
+        )
+        
+        # Parse request - detect format and normalize
+        message_text, session_id, language, conversation_history = _parse_request(request_body)
         
         # Generate session ID if not provided
-        session_id = request.session_id or str(uuid.uuid4())
+        if not session_id:
+            session_id = str(uuid.uuid4())
         
         # Detect language if auto
-        if request.language == "auto":
-            detected_language, _ = detect_language(request.message)
+        if language == "auto":
+            detected_language, _ = detect_language(message_text)
         else:
-            detected_language = request.language
+            detected_language = language
         
         # Retrieve existing session state if session_id was provided
         session_state = None
         is_ongoing_scam_session = False
-        if request.session_id:
-            session_state = get_session_state_with_fallback(request.session_id)
+        provided_session_id = request_body.get("session_id") or request_body.get("sessionId")
+        if provided_session_id:
+            session_state = get_session_state_with_fallback(provided_session_id)
             # Check if this is an ongoing scam conversation
             if session_state and session_state.get("turn_count", 0) > 0:
                 is_ongoing_scam_session = True
                 logger.info(f"Continuing existing scam session {session_id}, turn={session_state.get('turn_count', 0)}")
         
+        # If conversation history provided (GUVI format), rebuild session state
+        if conversation_history and not session_state:
+            session_state = _rebuild_session_from_history(conversation_history, detected_language)
+        
         # Run scam detection
         detector = get_detector()
-        detection_result = detector.detect(request.message, detected_language)
+        detection_result = detector.detect(message_text, detected_language)
         
         scam_detected = detection_result.get("scam_detected", False)
         confidence = detection_result.get("confidence", 0.0)
+        scam_indicators = detection_result.get("indicators", [])
         
         # Calculate processing time so far
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -113,6 +141,7 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
                 confidence=confidence,
                 language_detected=detected_language,
                 session_id=session_id,
+                reply=None,  # No reply for non-scam messages
                 message="No scam detected. Message appears legitimate.",
                 metadata=ResponseMetadata(
                     processing_time_ms=processing_time_ms,
@@ -136,7 +165,7 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
         agent = HoneypotAgent()
         
         # Engage the agent
-        result = agent.engage(request.message, session_state)
+        result = agent.engage(message_text, session_state)
         
         # Extract intelligence from conversation
         full_text = " ".join(msg.get("message", "") for msg in result.get("messages", []))
@@ -173,7 +202,7 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
             logger.info("Session state saved to Redis, continuing without PostgreSQL persistence")
         
         # Build conversation history for response
-        conversation_history = [
+        conversation_history_response = [
             MessageEntry(
                 turn=msg.get("turn", 0),
                 sender=msg.get("sender", "unknown"),
@@ -199,6 +228,10 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
             persona=result.get("persona"),
         )
         
+        # Extract suspicious keywords for GUVI format
+        messages_list = result.get("messages", [])
+        suspicious_keywords = extract_suspicious_keywords(messages_list, scam_indicators)
+        
         # Build extracted intelligence
         extracted_intelligence = ExtractedIntelligence(
             upi_ids=intel.get("upi_ids", []),
@@ -206,8 +239,36 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
             ifsc_codes=intel.get("ifsc_codes", []),
             phone_numbers=intel.get("phone_numbers", []),
             phishing_links=intel.get("phishing_links", []),
+            suspicious_keywords=suspicious_keywords,
             extraction_confidence=extraction_confidence,
         )
+        
+        # Generate agent notes (summary of scammer behavior)
+        agent_notes = generate_agent_notes(messages_list, intel, scam_indicators)
+        
+        # Check if we should send GUVI callback
+        max_turns_reached = turn_count >= max_turns
+        terminated = result.get("terminated", False)
+        
+        if should_send_callback(turn_count, max_turns_reached, extraction_confidence, terminated):
+            # Send callback to GUVI (async-safe, non-blocking)
+            try:
+                total_messages = len(messages_list)
+                callback_success = send_final_result_to_guvi(
+                    session_id=session_id,
+                    scam_detected=True,
+                    total_messages=total_messages,
+                    extracted_intel=intel,
+                    messages=messages_list,
+                    scam_indicators=scam_indicators,
+                    agent_notes=agent_notes,
+                )
+                if callback_success:
+                    logger.info(f"GUVI callback sent successfully for session {session_id}")
+                else:
+                    logger.warning(f"GUVI callback failed for session {session_id}")
+            except Exception as e:
+                logger.error(f"GUVI callback error: {e}")
         
         # Calculate final processing time
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -224,9 +285,11 @@ async def engage_honeypot(request: EngageRequest) -> EngageResponse:
             confidence=confidence,
             language_detected=detected_language,
             session_id=session_id,
+            reply=agent_response,  # GUVI format requirement
+            agent_notes=agent_notes,  # Summary of scammer behavior
             engagement=engagement,
             extracted_intelligence=extracted_intelligence,
-            conversation_history=conversation_history,
+            conversation_history=conversation_history_response,
             metadata=ResponseMetadata(
                 processing_time_ms=processing_time_ms,
                 model_version="1.0.0",
@@ -531,3 +594,171 @@ async def batch_process(request: BatchRequest) -> BatchResponse:
                 "message": "Failed to process batch request",
             },
         )
+
+
+# =====================================================
+# Helper Functions for GUVI Format Support
+# =====================================================
+
+def _parse_request(request_body: Dict[str, Any]) -> tuple:
+    """
+    Parse request body and normalize to internal format.
+    
+    Supports both our format and GUVI format.
+    
+    Args:
+        request_body: Raw request body dictionary
+        
+    Returns:
+        Tuple of (message_text, session_id, language, conversation_history)
+    """
+    # Check if this is GUVI format (nested message object or sessionId)
+    is_guvi_format = (
+        isinstance(request_body.get("message"), dict) or
+        "sessionId" in request_body
+    )
+    
+    if is_guvi_format:
+        return _parse_guvi_format(request_body)
+    else:
+        return _parse_standard_format(request_body)
+
+
+def _parse_standard_format(request_body: Dict[str, Any]) -> tuple:
+    """
+    Parse our standard request format.
+    
+    Format: {"message": "text", "session_id": "uuid", "language": "auto"}
+    """
+    message_text = request_body.get("message", "")
+    
+    if not message_text or not isinstance(message_text, str):
+        raise ValueError("message field is required and must be a string")
+    
+    session_id = request_body.get("session_id")
+    language = request_body.get("language", "auto")
+    
+    return message_text, session_id, language, None
+
+
+def _parse_guvi_format(request_body: Dict[str, Any]) -> tuple:
+    """
+    Parse GUVI's request format.
+    
+    Format:
+    {
+        "sessionId": "id",
+        "message": {"sender": "scammer", "text": "...", "timestamp": "..."},
+        "conversationHistory": [...],
+        "metadata": {"channel": "SMS", "language": "English", "locale": "IN"}
+    }
+    """
+    # Extract message text from nested object
+    message_obj = request_body.get("message", {})
+    
+    if isinstance(message_obj, dict):
+        message_text = message_obj.get("text", "")
+    else:
+        # Fallback: message might be a string in hybrid format
+        message_text = str(message_obj) if message_obj else ""
+    
+    if not message_text:
+        raise ValueError("message.text field is required")
+    
+    # Get session ID (GUVI uses camelCase)
+    session_id = request_body.get("sessionId") or request_body.get("session_id")
+    
+    # Get language from metadata
+    metadata = request_body.get("metadata", {})
+    guvi_language = metadata.get("language", "").lower() if metadata else ""
+    
+    # Map GUVI language names to our codes
+    language_map = {
+        "english": "en",
+        "hindi": "hi",
+        "hinglish": "hinglish",
+    }
+    language = language_map.get(guvi_language, "auto")
+    
+    # Parse conversation history
+    conversation_history = request_body.get("conversationHistory", [])
+    
+    # Normalize conversation history format
+    normalized_history = []
+    for item in conversation_history:
+        if isinstance(item, dict):
+            # Map 'user' sender to 'agent' for our internal format
+            sender = item.get("sender", "scammer")
+            if sender == "user":
+                sender = "agent"
+            
+            normalized_history.append({
+                "sender": sender,
+                "message": item.get("text", ""),
+                "timestamp": item.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            })
+    
+    return message_text, session_id, language, normalized_history
+
+
+def _rebuild_session_from_history(
+    conversation_history: List[Dict],
+    language: str,
+) -> Dict[str, Any]:
+    """
+    Rebuild session state from GUVI conversation history.
+    
+    When GUVI sends conversationHistory, we need to reconstruct
+    the session state to continue the conversation properly.
+    
+    Args:
+        conversation_history: List of previous messages
+        language: Detected/provided language
+        
+    Returns:
+        Session state dictionary
+    """
+    from app.agent.personas import select_persona
+    
+    # Build messages list with turn numbers
+    messages = []
+    for i, msg in enumerate(conversation_history):
+        messages.append({
+            "turn": i + 1,
+            "sender": msg.get("sender", "scammer"),
+            "message": msg.get("message", ""),
+            "timestamp": msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+        })
+    
+    turn_count = len(messages)
+    
+    # Select persona based on conversation content
+    full_text = " ".join(m.get("message", "") for m in messages)
+    persona = select_persona("unknown", language)
+    
+    # Determine strategy based on turn count
+    if turn_count < 5:
+        strategy = "build_trust"
+    elif turn_count < 12:
+        strategy = "express_confusion"
+    else:
+        strategy = "probe_details"
+    
+    return {
+        "messages": messages,
+        "scam_confidence": 0.7,  # Assume scam since history provided
+        "turn_count": turn_count,
+        "extracted_intel": {
+            "upi_ids": [],
+            "bank_accounts": [],
+            "ifsc_codes": [],
+            "phone_numbers": [],
+            "phishing_links": [],
+        },
+        "extraction_confidence": 0.0,
+        "strategy": strategy,
+        "language": language,
+        "persona": persona,
+        "max_turns_reached": False,
+        "terminated": False,
+    }

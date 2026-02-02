@@ -63,7 +63,11 @@ async function checkHealth() {
     const statusText = document.querySelector('.status-text');
     
     try {
-        const response = await fetch(API_ENDPOINTS.health);
+        const response = await fetch(API_ENDPOINTS.health, {
+            headers: {
+                'x-api-key': 'dev-key-12345', // Development API key (optional)
+            },
+        });
         const data = await response.json();
         
         // Update status indicator
@@ -128,6 +132,7 @@ async function sendMessage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'x-api-key': 'dev-key-12345', // Development API key (optional if not configured on server)
             },
             body: JSON.stringify(payload),
         });

@@ -115,6 +115,10 @@ class ExtractedIntelligence(BaseModel):
         default_factory=list,
         description="Extracted phishing/suspicious URLs",
     )
+    suspicious_keywords: List[str] = Field(
+        default_factory=list,
+        description="Suspicious keywords detected in scam messages",
+    )
     extraction_confidence: float = Field(
         default=0.0,
         ge=0.0,
@@ -151,6 +155,14 @@ class EngageResponse(BaseModel):
     )
     language_detected: str = Field(..., description="Detected language of the message")
     session_id: str = Field(..., description="Session identifier for this conversation")
+    reply: Optional[str] = Field(
+        None,
+        description="Agent's reply to the scammer (GUVI format requirement)",
+    )
+    agent_notes: Optional[str] = Field(
+        None,
+        description="Summary of scammer behavior and tactics",
+    )
     engagement: Optional[EngagementInfo] = Field(None, description="Engagement details")
     extracted_intelligence: Optional[ExtractedIntelligence] = Field(
         None,
@@ -261,3 +273,229 @@ class ErrorResponse(BaseModel):
     
     status: str = Field(default="error", description="Error status")
     error: ErrorDetail = Field(..., description="Error details")
+
+
+# =====================================================
+# GUVI Format Schemas
+# These schemas support the exact input format specified by GUVI
+# =====================================================
+
+class GUVIMessageInput(BaseModel):
+    """
+    GUVI format: Nested message object with sender, text, timestamp.
+    
+    Example:
+        {
+            "sender": "scammer",
+            "text": "Your bank account will be blocked today.",
+            "timestamp": "2026-01-21T10:15:30Z"
+        }
+    """
+    
+    sender: str = Field(
+        ...,
+        description="Message sender: 'scammer' or 'user'",
+    )
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=5000,
+        description="Message content",
+    )
+    timestamp: Optional[str] = Field(
+        None,
+        description="Message timestamp in ISO-8601 format",
+    )
+
+
+class GUVIMetadata(BaseModel):
+    """
+    GUVI format: Metadata about the message.
+    
+    Example:
+        {
+            "channel": "SMS",
+            "language": "English",
+            "locale": "IN"
+        }
+    """
+    
+    channel: Optional[str] = Field(
+        None,
+        description="Communication channel: SMS, WhatsApp, Email, Chat",
+    )
+    language: Optional[str] = Field(
+        None,
+        description="Language: English, Hindi, etc.",
+    )
+    locale: Optional[str] = Field(
+        None,
+        description="Country or region code: IN, US, etc.",
+    )
+
+
+class GUVIConversationHistoryItem(BaseModel):
+    """
+    GUVI format: Single item in conversation history.
+    
+    Example:
+        {
+            "sender": "scammer",
+            "text": "Previous message",
+            "timestamp": "2026-01-21T10:15:30Z"
+        }
+    """
+    
+    sender: str = Field(..., description="Message sender: 'scammer' or 'user'")
+    text: str = Field(..., description="Message content")
+    timestamp: Optional[str] = Field(None, description="Message timestamp")
+
+
+class GUVIEngageRequest(BaseModel):
+    """
+    GUVI format request schema for POST /api/v1/honeypot/engage.
+    
+    This schema matches the exact format specified in the GUVI problem statement.
+    
+    Example:
+        {
+            "sessionId": "wertyu-dfghj-ertyui",
+            "message": {
+                "sender": "scammer",
+                "text": "Your bank account will be blocked today.",
+                "timestamp": "2026-01-21T10:15:30Z"
+            },
+            "conversationHistory": [],
+            "metadata": {
+                "channel": "SMS",
+                "language": "English",
+                "locale": "IN"
+            }
+        }
+    """
+    
+    sessionId: Optional[str] = Field(
+        None,
+        alias="sessionId",
+        description="Session ID for multi-turn conversations (GUVI format: camelCase)",
+    )
+    message: GUVIMessageInput = Field(
+        ...,
+        description="The incoming message object",
+    )
+    conversationHistory: Optional[List[GUVIConversationHistoryItem]] = Field(
+        default_factory=list,
+        alias="conversationHistory",
+        description="Previous messages in the conversation",
+    )
+    metadata: Optional[GUVIMetadata] = Field(
+        None,
+        description="Message metadata",
+    )
+    
+    model_config = {"populate_by_name": True}
+    
+    def to_internal_format(self) -> Dict[str, Any]:
+        """
+        Convert GUVI format to our internal format.
+        
+        Returns:
+            Dictionary with our internal field names
+        """
+        # Map GUVI language names to our codes
+        language_map = {
+            "english": "en",
+            "hindi": "hi",
+            "hinglish": "hinglish",
+        }
+        
+        language = "auto"
+        if self.metadata and self.metadata.language:
+            lang_lower = self.metadata.language.lower()
+            language = language_map.get(lang_lower, "auto")
+        
+        return {
+            "message": self.message.text,
+            "session_id": self.sessionId,
+            "language": language,
+            "conversation_history": [
+                {
+                    "sender": item.sender,
+                    "message": item.text,
+                    "timestamp": item.timestamp,
+                }
+                for item in (self.conversationHistory or [])
+            ],
+            "metadata": {
+                "channel": self.metadata.channel if self.metadata else None,
+                "locale": self.metadata.locale if self.metadata else None,
+            },
+        }
+
+
+class UnifiedEngageRequest(BaseModel):
+    """
+    Unified request schema that accepts both our format and GUVI format.
+    
+    This schema auto-detects the format based on the presence of nested
+    'message' object vs. simple string 'message' field.
+    """
+    
+    # Our format fields
+    message: Optional[Any] = Field(
+        None,
+        description="Message (string for our format, object for GUVI format)",
+    )
+    session_id: Optional[str] = Field(
+        None,
+        description="Session ID (our format: snake_case)",
+    )
+    sessionId: Optional[str] = Field(
+        None,
+        description="Session ID (GUVI format: camelCase)",
+    )
+    language: Optional[str] = Field(
+        "auto",
+        description="Language code for our format",
+    )
+    conversationHistory: Optional[List[GUVIConversationHistoryItem]] = Field(
+        None,
+        description="Conversation history (GUVI format)",
+    )
+    metadata: Optional[GUVIMetadata] = Field(
+        None,
+        description="Metadata (GUVI format)",
+    )
+    mock_scammer_callback: Optional[str] = Field(
+        None,
+        description="Competition testing callback URL",
+    )
+    
+    model_config = {"populate_by_name": True}
+    
+    def get_message_text(self) -> str:
+        """Extract message text from either format."""
+        if isinstance(self.message, dict):
+            # GUVI format: nested object
+            return self.message.get("text", "")
+        elif isinstance(self.message, str):
+            # Our format: simple string
+            return self.message
+        else:
+            return ""
+    
+    def get_session_id(self) -> Optional[str]:
+        """Get session ID from either format."""
+        return self.session_id or self.sessionId
+    
+    def get_language(self) -> str:
+        """Get language from either format."""
+        if self.metadata and self.metadata.language:
+            lang_lower = self.metadata.language.lower()
+            language_map = {"english": "en", "hindi": "hi", "hinglish": "hinglish"}
+            return language_map.get(lang_lower, "auto")
+        return self.language or "auto"
+    
+    def is_guvi_format(self) -> bool:
+        """Check if request is in GUVI format."""
+        return isinstance(self.message, dict) or self.sessionId is not None
