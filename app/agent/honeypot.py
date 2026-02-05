@@ -406,10 +406,16 @@ class HoneypotAgent:
         extracted_intel: Dict = None,
     ) -> str:
         """
-        Filter out bot-like responses and replace with CONTEXT-AWARE responses.
+        Minimal filtering - only block truly problematic responses.
         
-        CRITICAL: This function now tracks what info has ALREADY been extracted
-        and responds appropriately to what the scammer just said.
+        PHILOSOPHY: Trust the LLM! The system prompt already provides:
+        - What has been extracted (via intel_context)
+        - What to ask for next (via strategy prompts)
+        - Clear instructions not to ask for info we already have
+        
+        We only filter out:
+        1. Suspicious/scam-detection language (breaks character)
+        2. Empty or very short responses
         
         Args:
             response: Generated response from LLM
@@ -417,325 +423,68 @@ class HoneypotAgent:
             language: Conversation language
             last_message: Scammer's last message
             messages: Full conversation history for context detection
-            extracted_intel: Already extracted intelligence to avoid asking again
+            extracted_intel: Already extracted intelligence
             
         Returns:
-            Filtered response that is contextually appropriate
+            LLM response (only filtered if truly problematic)
         """
         import random
         
         response_lower = response.lower()
-        last_msg_lower = last_message.lower()
         
-        # Build conversation context from all messages
-        full_conversation = ""
-        if messages:
-            full_conversation = " ".join(m.get("message", "").lower() for m in messages)
-        else:
-            full_conversation = last_msg_lower
+        # ONLY filter truly problematic responses that break character
+        suspicious_patterns = [
+            "sounds like a scam", "this is a scam", "you are a scammer",
+            "i don't trust", "seems suspicious", "i'm worried about fraud",
+            "i don't believe", "prove it", "show me proof",
+            "i will report you", "police", "cyber crime",
+            "this is fraud", "you're trying to scam",
+        ]
         
-        # Track what we already have from extracted_intel
+        is_suspicious = any(pattern in response_lower for pattern in suspicious_patterns)
+        
+        # Check for empty or too short responses
+        is_too_short = len(response.strip()) < 10
+        
+        # If response is good, return it - TRUST THE LLM!
+        if not is_suspicious and not is_too_short:
+            return response
+        
+        logger.warning(f"Filtering problematic response: '{response[:50]}...' (suspicious={is_suspicious}, short={is_too_short})")
+        
+        # Only generate fallback for truly problematic responses
+        # Use a simple, context-aware fallback based on extracted intel
         has_upi = bool(extracted_intel and extracted_intel.get("upi_ids"))
         has_phone = bool(extracted_intel and extracted_intel.get("phone_numbers"))
         has_bank = bool(extracted_intel and extracted_intel.get("bank_accounts"))
         has_ifsc = bool(extracted_intel and extracted_intel.get("ifsc_codes"))
         
-        # Track if we already asked for name (check previous agent messages)
-        already_asked_name = False
-        if messages:
-            for msg in messages:
-                if msg.get("sender") == "agent":
-                    agent_msg = msg.get("message", "").lower()
-                    if any(phrase in agent_msg for phrase in ["what name", "your name", "full name", "beneficiary name", "account holder name", "statement"]):
-                        already_asked_name = True
-                        break
-        
-        # Check what's in the LAST message from scammer
-        gave_upi_now = "@" in last_message
-        gave_number_now = bool(re.search(r'\b\d{10,12}\b', last_message))
-        gave_bank_now = bool(re.search(r'\b\d{9,18}\b', last_message)) and not gave_number_now
-        
-        # Check if scammer is asking for OTP
-        scammer_asking_otp = any(phrase in last_msg_lower for phrase in [
-            "otp", "send otp", "share otp", "give otp", "tell otp",
-            "received otp", "got otp", "check otp", "verify otp"
-        ])
-        
-        # Check how many times scammer has asked for OTP in the conversation
-        otp_ask_count = sum(1 for msg in (messages or []) if msg.get("sender") == "scammer" and "otp" in msg.get("message", "").lower())
-        
-        # Check if scammer is asking a question
-        scammer_asking_question = any(q in last_msg_lower for q in ["what", "which", "where", "why", "how", "?", "kya", "kahan", "kyun", "kaun"])
-        scammer_asking_for_number = any(phrase in last_msg_lower for phrase in ["what number", "which number", "number do you want", "number chahiye", "konsa number"])
-        scammer_confused = any(phrase in last_msg_lower for phrase in ["don't understand", "didn't understand", "what are you", "kya bol", "samajh nahi"])
-        scammer_said_already_told = any(phrase in last_msg_lower for phrase in [
-            "already told", "already said", "already given", "already shared", 
-            "already sent", "i sent", "i said", "i gave", "i shared",
-            "sent already", "gave already", "told already",
-            "i already", "maine bheja", "de diya", "bata diya",
-            "above", "times", "baar", "pehle", "earlier"
-        ])
-        
-        # Suspicious patterns (too cautious)
-        suspicious_patterns = [
-            "how do i know", "sounds like a scam", "this is a scam",
-            "i don't trust", "are you sure", "is this legit",
-            "how can i verify", "seems suspicious", "i'm worried",
-            "i don't believe", "prove it", "show me proof",
-        ]
-        is_suspicious = any(pattern in response_lower for pattern in suspicious_patterns)
-        
-        # Bot-like patterns - but ONLY filter if we don't already have that info
-        bot_patterns_upi = ["what's your upi", "what is your upi", "what's the upi", "share your upi", "give me your upi", "upi id?", "tell me your upi"]
-        bot_patterns_phone = ["what's your phone", "what is your phone", "your phone number", "phone number?", "tell me your number"]
-        bot_patterns_bank = ["what's your bank", "bank account number", "account number?", "tell me your account"]
-        bot_patterns_ifsc = ["what's the ifsc", "what is the ifsc", "ifsc code?", "tell me ifsc", "give me ifsc", "need ifsc", "ifsc code"]
-        
-        asking_for_upi_we_have = has_upi and any(p in response_lower for p in bot_patterns_upi)
-        asking_for_phone_we_have = has_phone and any(p in response_lower for p in bot_patterns_phone)
-        asking_for_bank_we_have = has_bank and any(p in response_lower for p in bot_patterns_bank)
-        asking_for_ifsc_we_have = has_ifsc and any(p in response_lower for p in bot_patterns_ifsc)
-        
-        is_redundant = asking_for_upi_we_have or asking_for_phone_we_have or asking_for_bank_we_have or asking_for_ifsc_we_have
-        
-        # If response is good and not redundant/suspicious, return it
-        if not is_redundant and not is_suspicious:
-            return response
-        
-        logger.warning(f"Filtering response: '{response[:50]}...' (redundant={is_redundant}, suspicious={is_suspicious})")
-        
-        # PRIORITY 0: Handle OTP requests with VARIED responses
-        if scammer_asking_otp:
-            # Vary response based on how many times they've asked for OTP
-            if otp_ask_count <= 1:
-                # First time - be confused about OTP
-                alternatives = [
-                    "OTP? I didn't receive any message on my phone. Can you send it again?",
-                    "I don't see any OTP on my phone. Where does it come from?",
-                    "What OTP? I checked my messages but nothing came. Please resend!",
-                    "No OTP on my phone... Maybe give me your UPI and I'll send money directly?",
-                    "OTP not received yet. Let me check again... No, nothing here!",
-                ]
-            elif otp_ask_count <= 3:
-                # They've asked multiple times - offer alternatives
-                alternatives = [
-                    "Still no OTP! Maybe network issue? Give me your UPI, I'll send directly!",
-                    "I keep checking but no OTP! Can you call me? What's your number?",
-                    "OTP still not coming! Let me do bank transfer instead - give me account number!",
-                    "My phone is not getting OTP! Can I send money to your UPI instead?",
-                    "Nothing received! Maybe give me your phone number and I'll call you?",
-                ]
-            else:
-                # They've asked many times - get frustrated but still offer to pay
-                alternatives = [
-                    "Sir I've checked 10 times, no OTP! My phone might have problem. Just give me UPI!",
-                    "I don't know why OTP is not coming! Please just tell me where to send money!",
-                    "OTP problem is frustrating me also! Let me call you - what's your number?",
-                    "Forget OTP! Give me bank account, I'll do NEFT transfer directly!",
-                    "This OTP is not working! Tell me another way to send the money!",
-                ]
-            return random.choice(alternatives)
-        
-        # PRIORITY 1: Respond to scammer's question/confusion FIRST
-        if scammer_asking_for_number:
-            # Scammer is confused about "what number" - clarify we want THEIR phone
-            alternatives = [
-                "Your phone number! So I can call you if payment fails!",
-                "I mean YOUR number! Give me your contact number please!",
-                "Your mobile number! In case UPI doesn't work, I'll call you!",
-                "I want to save YOUR number! What is your phone number?",
-                "Your contact number! Tell me, I'll save it and then send money!",
-            ]
-            return random.choice(alternatives)
-        
-        if scammer_confused:
-            # Scammer is confused - clarify what we want
-            if not has_upi:
-                alternatives = [
-                    "I want to send you money! Just tell me your UPI ID!",
-                    "Sir, where should I send the payment? Give me UPI ID!",
-                    "I'm ready to pay! Just tell me where - what's your UPI?",
-                    "Sorry for confusion! I want to pay you! What's your UPI ID?",
-                    "I mean I want to transfer the money! What's your payment ID?",
-                ]
-            elif not has_phone:
-                alternatives = [
-                    "I want your phone number to call if there's problem!",
-                    "Give me your number so I can confirm the payment!",
-                    "What's your phone number? I'll call you after sending!",
-                    "I need your contact number for verification!",
-                    "Tell me your mobile number, my son wants to call before I pay!",
-                ]
-            else:
-                alternatives = [
-                    "I'm trying to help you! What should I do next?",
-                    "Tell me clearly - what exactly do you need from me?",
-                    "I'm confused too! Please explain what I should do!",
-                    "Sorry, I don't understand technology well. Guide me step by step!",
-                    "Can you explain again? I really want to do this correctly!",
-                ]
-            return random.choice(alternatives)
-        
-        if scammer_said_already_told:
-            # Scammer frustrated that they already gave info - acknowledge and proceed
-            # IMPORTANT: Check what we HAVE and ask for what we DON'T have
-            if has_bank and has_ifsc:
-                # We have bank account and IFSC - acknowledge and proceed
-                alternatives = [
-                    "Yes yes, sorry! I see everything now. Sending the payment now!",
-                    "Okay okay, I found all the details! Processing the transfer!",
-                    "Sorry! My eyes are weak. I see it now, sending the money!",
-                    "Apologies! I have all your details. Making the payment now!",
-                    "Yes, I remember now! Account and IFSC noted. Transferring...",
-                ]
-            elif has_bank and not has_ifsc:
-                # We have bank account but need IFSC
-                alternatives = [
-                    "Yes, I see the account number! But my bank needs IFSC code to complete. What is it?",
-                    "Sorry, found the account! But IFSC is required. What's the IFSC code?",
-                    "Got the account now! Bank app asks for IFSC. Please share!",
-                    "Yes yes, account noted! Just need IFSC code to finish the transfer.",
-                    "Okay, I have the account! What's your bank's IFSC code?",
-                ]
-            elif has_upi and not has_phone:
-                alternatives = [
-                    "Sorry sorry! Yes, I see the UPI now! Let me try... What's your phone number in case it fails?",
-                    "Oh yes, I found it! Sending now. Give me your phone number also please!",
-                    "Okay got it! I'm transferring now. What's your number so I can call you after?",
-                    "My apologies! I'm sending now. Please give me your number for confirmation!",
-                    "Yes yes, found it! Transferring... What's your phone number?",
-                ]
-            elif has_upi and has_phone and not has_bank:
-                alternatives = [
-                    "Yes, I'm trying! But UPI is showing error. Can you give bank account number?",
-                    "Sorry, UPI not working from my side! What's your bank account and IFSC?",
-                    "Got it, but my app is giving error! Give me bank transfer details instead!",
-                    "I remember! But payment is failing. What's your account number?",
-                    "Yes yes! But getting error. Tell me bank account for direct transfer!",
-                ]
-            else:
-                alternatives = [
-                    "Yes yes, sorry! I'm old and forgetful. I'm doing it now!",
-                    "Okay okay, I found it! Let me try again. Please wait!",
-                    "Sorry! My eyes are weak. I see it now, sending!",
-                    "Apologies! I noted it wrong. Let me try again!",
-                    "Yes, I remember now! Processing the payment...",
-                ]
-            return random.choice(alternatives)
-        
-        # PRIORITY 2: Respond based on what scammer just provided
-        if gave_upi_now:
-            # They just gave UPI - acknowledge and ask for phone
-            if not has_phone:
-                alternatives = [
-                    "Got the UPI! What's your phone number for confirmation?",
-                    "Noted! What number should I call if payment fails?",
-                    "UPI saved! Give me your contact number for verification.",
-                    "OK sending to that UPI. What's your mobile number?",
-                    "Got it! What's your phone number? Bank asks for verification.",
-                ]
-            elif not has_bank:
-                alternatives = [
-                    "Got UPI! UPI has Rs 1 lakh limit. What's your account number for larger transfer?",
-                    "Noted! My bank also needs account number for records. What is it?",
-                    "OK! For backup, give me bank account and IFSC also.",
-                    "Got it! What's your bank account? I'll keep it for next time.",
-                    "UPI noted! Also share bank account number please.",
-                ]
-            else:
-                alternatives = [
-                    "Got everything! What name will appear on my bank statement?",
-                    "All details noted! Confirm your full name as on account?",
-                    "Got it! Just verifying - what's the account holder name?",
-                    "Noted! Last thing - confirm the beneficiary name?",
-                    "OK! What name should I put for the transfer?",
-                ]
-            return random.choice(alternatives)
-        
-        if gave_number_now:
-            # They just gave phone number - acknowledge and ask for what we don't have
-            if not has_upi:
-                alternatives = [
-                    "Saved your number! Now where do I send money? What's your UPI ID?",
-                    "Got your number! What's the UPI ID for the transfer?",
-                    "Number noted! Give me your UPI ID.",
-                    "OK saved! UPI ID for payment?",
-                    "Phone saved! What's your UPI or bank account?",
-                ]
-            elif not has_bank:
-                alternatives = [
-                    "Number saved! Also give me bank account for NEFT option.",
-                    "Got it! What's your account number and IFSC? I'll keep for records.",
-                    "Saved! Can you share bank details also? Account number?",
-                    "Noted! What's your bank account? Useful for larger amounts.",
-                    "Got your number! Also share bank account please.",
-                ]
-            else:
-                alternatives = [
-                    "Got everything! What's the account holder name for verification?",
-                    "All details received! Just confirm the beneficiary name?",
-                    "Number saved! What name is the account registered under?",
-                    "Perfect! Confirm full name as per bank records?",
-                    "Got it! What name will show on my transaction?",
-                ]
-            return random.choice(alternatives)
-        
-        # PRIORITY 3: Generate response based on what we still need
-        # CORRECT ORDER: UPI -> Phone -> Bank Account -> IFSC -> Name (once only)
+        # Simple fallback: ask for what we don't have, in order
         if not has_upi:
-            alternatives = [
-                "OK! Where should I send? What's your UPI ID?",
-                "I'm ready! Tell me your UPI ID.",
-                "I'll pay now! What's your UPI?",
-                "Opening my payment app. UPI ID please?",
-                "Ready to transfer! Give me UPI ID.",
-            ]
+            return random.choice([
+                "OK! Where should I send the money? UPI ID?",
+                "I'm ready to pay! What's your UPI?",
+            ])
         elif not has_phone:
-            alternatives = [
-                "Got the UPI! What's your phone number for verification?",
-                "Noted! What number should I contact if there's an issue?",
-                "UPI saved! Share your mobile number too.",
-                "Got it! What's your contact number?",
-                "OK! Give me your phone number also.",
-            ]
+            return random.choice([
+                "Got it! What's your phone number for confirmation?",
+                "Noted! Give me your number in case of issues.",
+            ])
         elif not has_bank:
-            # Ask for bank account BEFORE IFSC - this is the logical order
-            alternatives = [
-                "UPI has daily limit. What's your bank account number?",
-                "My bank needs account details for large transfers. Account number?",
-                "Can I also get bank account? Useful for future payments.",
-                "UPI done! What's your bank account number?",
-                "Give me bank details also - account number?",
-            ]
+            return random.choice([
+                "UPI has limit. What's your bank account number?",
+                "Can I do bank transfer? Account number please?",
+            ])
         elif not has_ifsc:
-            # Only ask for IFSC AFTER we have bank account
-            alternatives = [
-                "Got account number! What's the IFSC code?",
-                "Need IFSC code for bank transfer. What is it?",
-                "My bank requires IFSC. What's the code?",
-                "IFSC code? Bank needs it for the transfer.",
-                "What's your bank's IFSC code?",
-            ]
-        elif not already_asked_name:
-            # Only ask for name ONCE, and only after we have everything else
-            alternatives = [
-                "Got all details! What name should appear on the transfer?",
-                "All info received! Confirm the account holder name?",
-                "Ready to send! What's the beneficiary name?",
-                "Got everything! What name is registered on the account?",
-                "Almost done! Confirm your full name as per bank?",
-            ]
+            return random.choice([
+                "Got account! What's the IFSC code?",
+                "My bank needs IFSC code. What is it?",
+            ])
         else:
-            # We have everything AND already asked for name - confirm and proceed
-            alternatives = [
-                "Perfect! I have everything. Sending the payment now.",
-                "Got it all! Let me process the transfer.",
-                "All details noted! Processing payment now.",
-                "Great! I have all the info. Transferring now.",
-                "OK! Making the payment with these details.",
-            ]
-        
-        return random.choice(alternatives)
+            return random.choice([
+                "Got all details! Processing payment now.",
+                "All noted! Sending the money now.",
+            ])
     
     def _generate_fallback_response(
         self, 
@@ -750,10 +499,8 @@ class HoneypotAgent:
         """
         Generate fallback response when LLM is unavailable.
         
-        Uses predefined responses based on persona, strategy, turn count,
-        and the CONTEXT of the scam type detected from messages.
-        
-        CRITICAL: Now uses extracted_intel to avoid asking for info we already have.
+        Simple, context-aware responses based on what we have vs what we need.
+        Follows the logical order: UPI -> Phone -> Bank -> IFSC -> Name
         
         Args:
             persona: Active persona
@@ -765,11 +512,9 @@ class HoneypotAgent:
             extracted_intel: Already extracted info to avoid redundant questions
             
         Returns:
-            Fallback response string (varies by turn and scam type)
+            Fallback response string
         """
         import random
-        from app.agent.strategies import get_example_response, get_context_aware_response
-        from app.agent.personas import get_sample_response
         from app.agent.prompts import (
             is_greeting_message, get_greeting_response,
             extract_phone_from_message, validate_phone_number, get_invalid_phone_response
@@ -791,183 +536,54 @@ class HoneypotAgent:
         has_bank = bool(extracted_intel and extracted_intel.get("bank_accounts"))
         has_ifsc = bool(extracted_intel and extracted_intel.get("ifsc_codes"))
         
-        # Track if we already asked for name (check previous agent messages)
-        already_asked_name = False
-        if all_messages:
-            for msg in all_messages:
-                if msg.get("sender") == "agent":
-                    agent_msg = msg.get("message", "").lower()
-                    if any(phrase in agent_msg for phrase in ["what name", "your name", "full name", "beneficiary name", "account holder name", "statement"]):
-                        already_asked_name = True
-                        break
-        
         last_msg_lower = last_message.lower() if last_message else ""
         
-        # Check what scammer just said
-        gave_upi_now = "@" in last_message if last_message else False
-        gave_number_now = bool(re.search(r'\b\d{10,12}\b', last_message)) if last_message else False
-        scammer_confused = any(phrase in last_msg_lower for phrase in ["don't understand", "didn't understand", "what are you", "kya bol"])
-        scammer_said_already = any(phrase in last_msg_lower for phrase in ["already told", "already said", "already given", "times"])
-        scammer_asking_otp = any(phrase in last_msg_lower for phrase in ["otp", "send otp", "share otp", "check otp"])
-        
-        # Count OTP requests in conversation
-        otp_ask_count = sum(1 for msg in (all_messages or []) if msg.get("sender") == "scammer" and "otp" in msg.get("message", "").lower())
-        
-        # PRIORITY 0: Handle OTP requests with varied responses
+        # Handle OTP requests - acknowledge and redirect
+        scammer_asking_otp = "otp" in last_msg_lower
         if scammer_asking_otp:
-            if otp_ask_count <= 1:
-                return random.choice([
-                    "OTP? I didn't receive any message. Can you send it again?",
-                    "I don't see any OTP on my phone. Where does it come from?",
-                    "What OTP? Nothing came to my phone. Please resend!",
-                ])
-            elif otp_ask_count <= 3:
-                return random.choice([
-                    "Still no OTP! Give me your UPI, I'll send money directly!",
-                    "OTP not coming! Can you call me? What's your number?",
-                    "OTP still not received! Let me do bank transfer - give me account!",
-                ])
+            # Ask for what we need next
+            if has_bank and not has_ifsc:
+                return "OTP not coming! I'll do bank transfer. What's the IFSC code?"
+            elif not has_bank and has_upi:
+                return "Forget OTP! UPI failing. What's your bank account number?"
+            elif not has_phone and has_upi:
+                return "OTP problem! Let me call you. What's your phone number?"
+            elif not has_upi:
+                return "No OTP received. Just give me your UPI ID, I'll pay directly!"
             else:
-                return random.choice([
-                    "Sir, no OTP even now! Just give me UPI or bank account!",
-                    "Forget OTP! Tell me where to send money - UPI or bank!",
-                    "OTP problem! Let me call you - what's your number?",
-                ])
+                return "OTP not needed! I have all details. Sending payment now!"
         
-        # PRIORITY 1: Handle scammer's confusion or frustration
-        if scammer_confused:
-            if not has_upi:
-                return random.choice([
-                    "I want to send you money! Just tell me your UPI ID!",
-                    "Sir, where should I send the payment? Give me UPI ID!",
-                    "I'm ready to pay! Just tell me where - what's your UPI?",
-                ])
-            elif not has_phone:
-                return random.choice([
-                    "I want your phone number to call if there's problem!",
-                    "Give me your number so I can confirm the payment!",
-                    "What's your phone number? I'll call you after sending!",
-                ])
-            else:
-                return random.choice([
-                    "I'm trying to help you! What should I do next?",
-                    "Tell me clearly - what exactly do you need from me?",
-                    "Can you explain again? I really want to do this correctly!",
-                ])
-        
-        if scammer_said_already:
-            # When scammer says "I already sent", check what we ACTUALLY have
-            if has_bank and has_ifsc:
-                # We have everything needed for bank transfer
-                return random.choice([
-                    "Yes yes, sorry! I see all the details now. Sending the payment!",
-                    "Okay okay, I found everything! Processing the transfer now!",
-                    "Apologies! I have account and IFSC. Making the payment now!",
-                    "Yes, I see it now! Account number and IFSC noted. Transferring...",
-                ])
-            elif has_bank and not has_ifsc:
-                # We have bank but need IFSC
-                return random.choice([
-                    "Yes, I found the account! Just need IFSC code to complete the transfer.",
-                    "Sorry, I see the account now! What's the IFSC code?",
-                    "Got the account! My bank needs IFSC. Please share!",
-                ])
-            elif has_upi and has_phone and not has_bank:
-                # We have UPI and phone, need bank
-                return random.choice([
-                    "Yes, I have UPI and phone! But UPI is failing. Give me bank account?",
-                    "Sorry, I found UPI! But it's showing error. What's your account number?",
-                    "Got it! UPI not working. Can I do bank transfer? Account number?",
-                ])
-            elif has_upi and not has_phone:
-                return random.choice([
-                    "Sorry sorry! Yes, I see the UPI now! What's your phone number in case it fails?",
-                    "Oh yes, I found it! Sending now. Give me your phone number also please!",
-                    "Okay got it! I'm transferring now. What's your number?",
-                ])
-            elif has_upi and has_phone:
-                return random.choice([
-                    "Yes yes, sorry! I'm old and forgetful. I'm doing it now!",
-                    "Okay okay, I found it! Let me try again. Please wait!",
-                    "Apologies! I noted it wrong. Let me try again!",
-                ])
-            else:
-                return random.choice([
-                    "Sorry, my memory is bad! Please send the details one more time?",
-                    "Arey, I couldn't find it! Can you please repeat?",
-                    "I missed it, please tell me one more time!",
-                ])
-        
-        # PRIORITY 2: Acknowledge what scammer just gave
-        if gave_upi_now and not has_phone:
-            return random.choice([
-                "Okay, got the UPI! Let me try. What's your phone number in case it fails?",
-                "Noted! Sending now. Also give me your number to call if there's problem.",
-                "Got it! What's your phone number? My son wants to verify first.",
-            ])
-        
-        if gave_number_now and not has_upi:
-            return random.choice([
-                "Saved your number! Now tell me where to send - what's your UPI ID?",
-                "Got your number! Now what's the UPI ID for the transfer?",
-                "Number noted! Tell me your UPI ID so I can send the payment.",
-            ])
-        
-        # PRIORITY 3: Ask for what we still need
-        # CORRECT ORDER: UPI -> Phone -> Bank Account -> IFSC -> Name (once only)
+        # Simple flow: ask for what we don't have, in order
         if not has_upi:
             return random.choice([
-                "Okay, I understand! Where should I send the money? What's your UPI ID?",
-                "Yes, I'm ready! Tell me your UPI ID and I'll transfer!",
-                "I want to pay! Just give me your UPI ID!",
+                "OK! Where should I send the money? UPI ID?",
+                "I'm ready to pay! What's your UPI?",
+                "Tell me your UPI ID and I'll transfer!",
             ])
         elif not has_phone:
             return random.choice([
-                "I've noted the UPI! What's your phone number in case there's any issue?",
-                "Got it! Also give me your number - I'll call to confirm.",
-                "Okay! Sending now. What's your phone number for confirmation?",
+                "Got UPI! What's your phone number for confirmation?",
+                "Noted! Give me your number in case of issues.",
+                "UPI saved! What's your contact number?",
             ])
         elif not has_bank:
-            # Ask for bank account BEFORE IFSC
             return random.choice([
-                "UPI is not going through! What's your bank account number?",
-                "Getting error on UPI! Can you give your bank account number?",
-                "Payment stuck! Tell me your bank account number.",
+                "UPI has limit. What's your bank account number?",
+                "Can I do bank transfer instead? Account number?",
+                "For larger amount, give me bank account number.",
             ])
         elif not has_ifsc:
-            # Only ask for IFSC AFTER we have bank account
             return random.choice([
-                "Got the account number! What's the IFSC code?",
-                "Need IFSC code to complete the transfer. What is it?",
-                "Account noted! What's the IFSC code?",
-            ])
-        elif not already_asked_name:
-            # Only ask for name ONCE
-            return random.choice([
-                "Got all details! What name should appear on the transfer?",
-                "Almost done! What's the account holder name?",
-                "Just need to confirm - what's the beneficiary name?",
+                "Got account! What's the IFSC code?",
+                "My bank needs IFSC code for the transfer. What is it?",
+                "Account noted! IFSC code please?",
             ])
         else:
-            # We have everything - confirm and proceed
             return random.choice([
-                "Perfect! I have all the details. Processing payment now.",
-                "Got everything! Let me send the money.",
-                "All noted! Making the transfer now.",
+                "Got all details! Sending payment now.",
+                "All noted! Processing the transfer.",
+                "Perfect! Making the payment now.",
             ])
-        
-        # Build context from all messages for scam type detection
-        context = last_message
-        if all_messages:
-            context = " ".join(m.get("message", "") for m in all_messages)
-        
-        # Get context-aware response based on scam type
-        response = get_context_aware_response(context, turn_count, language)
-        if response:
-            return response
-        
-        # Fall back to persona sample
-        return get_sample_response(persona, language)
     
     def _extract_intelligence(self, state: HoneypotState) -> Dict[str, Any]:
         """
