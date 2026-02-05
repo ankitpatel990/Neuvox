@@ -310,25 +310,15 @@ class IntelligenceExtractor:
         """
         Check if number is an OBVIOUS sequential pattern.
         
-        We only reject very obvious patterns like:
-        - 123456789 (ascending from 1)
-        - 111111111 (all same digits - handled separately)
+        IMPORTANT: For a honeypot, we WANT to capture ALL data scammers provide,
+        even if it looks like a test/sequential pattern. Scammers might use
+        obvious patterns, and we should still track them.
         
-        We do NOT reject patterns like 98765432109876 because:
-        1. Real bank accounts can have sequential parts
-        2. Scammers might give real/fake accounts with any pattern
-        3. For a honeypot, we want to CAPTURE data, not reject it
+        Therefore, this function now returns False for all inputs.
+        We only reject all-same-digit patterns (handled in _validate_bank_accounts).
         """
-        if len(number) < 9:
-            return False
-        
-        # Only reject the most obvious ascending patterns starting from 1
-        # e.g., 123456789, 1234567890123456
-        obvious_ascending = "1234567890" * 2  # Covers up to 18 digits
-        if number == obvious_ascending[:len(number)]:
-            return True
-        
-        # Don't reject descending or other patterns - they could be real accounts
+        # DO NOT reject sequential patterns - capture all scammer data
+        # The honeypot's purpose is intelligence gathering, not validation
         return False
     
     def _validate_ifsc_codes(self, ifsc_codes: List[str]) -> List[str]:
