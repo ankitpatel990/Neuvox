@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 
 # Enhanced configuration
 MAX_TURNS = 20
-EXTRACTION_CONFIDENCE_THRESHOLD = 0.95
+EXTRACTION_CONFIDENCE_THRESHOLD = 0.85
 
 
 class EnhancedHoneypotAgent:
@@ -410,13 +410,13 @@ class EnhancedHoneypotAgent:
             },
             "probe_for_details": {
                 "en": [
-                    "I'm trying to send but need all details. UPI? Phone? Account?",
-                    "Payment is not going through. Give me alternative - bank account and IFSC?",
-                    "Almost done! Just confirm - what's your UPI and phone number?",
+                    "Got UPI! What's your phone number for confirmation?",
+                    "Need bank account and IFSC for backup transfer.",
+                    "What's the IFSC code? Bank requires it.",
                 ],
                 "hi": [
-                    "भेजने की कोशिश कर रहा हूं। UPI? Phone? Account? सब बताओ!",
-                    "Payment नहीं हो रहा। Alternative दो - account और IFSC?",
+                    "UPI मिल गया! Phone number दो confirmation के लिए।",
+                    "Bank account और IFSC भी दो backup के लिए।",
                 ],
             },
         }

@@ -25,7 +25,7 @@ class TestGroqConfiguration:
         
         settings = Settings()
         assert hasattr(settings, "GROQ_MODEL")
-        assert settings.GROQ_MODEL == "llama-3.3-70b-versatile"
+        assert settings.GROQ_MODEL == "llama-3.1-8b-instant"
     
     def test_groq_max_tokens_in_config(self):
         """Test that config includes GROQ_MAX_TOKENS setting."""

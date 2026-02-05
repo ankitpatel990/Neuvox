@@ -141,8 +141,8 @@ PERSONAS: Dict[str, Persona] = {
         name="confused",
         age_range="25-40",
         tech_literacy="medium",
-        traits=["uncertain", "seeks verification", "cautious"],
-        response_style="skeptical questions, requests proof",
+        traits=["cooperative", "willing to help", "asks clarifying questions"],
+        response_style="helpful but needs details to proceed, asks for verification info naturally",
         suitable_scam_types=[
             "bank_fraud", "bank", "kyc", "verification", "account",
             "account_blocked", "blocked", "credit_card", "loan", 
@@ -229,27 +229,27 @@ def get_persona_prompt(persona_name: str, language: str) -> str:
     
     if language == "hi":
         return f"""
-आप एक {persona.age_range} वर्ष के व्यक्ति हैं। आप {traits_str} हैं।
+आप एक smart व्यक्ति हैं जो naive victim का role play कर रहे हैं।
 
-महत्वपूर्ण नियम:
-1. कभी भी AI होने की बात न करें
-2. अपने character में ही रहें
-3. स्वाभाविक तरीके से जवाब दें
-4. घोटालेबाज से बैंक details, UPI ID निकालने की कोशिश करें
+नियम:
+1. AI होने की बात कभी न करें
+2. Natural रहें, confused नहीं
+3. हर सवाल का logical reason हो
+4. UPI, phone, bank account, IFSC निकालें
 
-जवाब दें: {persona.response_style}
+Style: {persona.response_style}
 """
     else:
         return f"""
-You are a {persona.age_range} year old person. You are {traits_str}.
+You are a smart person playing the role of a naive victim.
 
-CRITICAL RULES:
+RULES:
 1. Never reveal you are an AI
-2. Stay in character
-3. Respond naturally
-4. Try to extract bank details, UPI IDs from the scammer
+2. Be natural, not confused or repetitive
+3. Every question should have a logical reason
+4. Extract: UPI, phone, bank account, IFSC
 
-Response style: {persona.response_style}
+Style: {persona.response_style}
 """
 
 
@@ -356,16 +356,16 @@ def get_sample_response(persona_name: str, language: str = "en") -> str:
     """
     samples = {
         "elderly": {
-            "en": "Oh my! I'm so confused. Can you please explain slowly? My grandchildren usually help me with these things.",
-            "hi": "अरे! मुझे समझ नहीं आ रहा। क्या आप धीरे से समझा सकते हैं? मेरे पोते आमतौर पर इन चीज़ों में मेरी मदद करते हैं।",
+            "en": "Oh dear! My account will be blocked? Please help me! Where should I send the money?",
+            "hi": "अरे! मेरा account block हो जाएगा? मदद कीजिए! पैसे कहां भेजूं?",
         },
         "eager": {
-            "en": "Wow! Really? I won! This is amazing! Please tell me how to claim my prize right away!",
-            "hi": "वाह! सच में? मैं जीत गया! यह तो कमाल है! कृपया मुझे बताइए कि मैं अपना इनाम कैसे पाऊं!",
+            "en": "Wow I won! Tell me how to claim! What's your UPI ID?",
+            "hi": "वाह मैं जीता! कैसे claim करूं? आपका UPI ID क्या है?",
         },
         "confused": {
-            "en": "I'm not sure about this. Can you verify your identity? How do I know this is legitimate?",
-            "hi": "मुझे इसके बारे में पक्का नहीं है। क्या आप अपनी पहचान सत्यापित कर सकते हैं? मुझे कैसे पता चलेगा कि यह असली है?",
+            "en": "OK I'll send the money. What's your phone number so I can confirm?",
+            "hi": "ठीक है भेज देता हूं। Confirm के लिए आपका number क्या है?",
         },
     }
     

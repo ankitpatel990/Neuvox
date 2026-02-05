@@ -166,6 +166,30 @@
                     </div>
                 </div>
 
+                <!-- GUVI Callback Status -->
+                <div class="intel-section" id="callbackSection" style="display: none;">
+                    <h3>📡 GUVI Callback</h3>
+                    <div class="callback-status" id="callbackStatus">
+                        <div class="callback-triggered">
+                            <span class="callback-icon">🚀</span>
+                            <span class="callback-text">Callback Triggered!</span>
+                        </div>
+                        <div class="callback-details">
+                            <div class="callback-item">
+                                <span class="callback-label">Status:</span>
+                                <span class="callback-value" id="callbackSuccess">-</span>
+                            </div>
+                            <div class="callback-item">
+                                <span class="callback-label">Endpoint:</span>
+                                <span class="callback-value callback-url" id="callbackUrl">-</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary btn-small" onclick="showCallbackPayload()" style="margin-top: 10px; width: 100%;">
+                            👁️ View Request Body
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Export Report -->
                 <div class="intel-section">
                     <button class="btn btn-primary btn-full" onclick="exportReport()">
@@ -201,6 +225,31 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal()">Close</button>
                 <button class="btn btn-primary" onclick="downloadReport()">Download JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GUVI Callback Payload Modal -->
+    <div class="modal" id="callbackModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📡 GUVI Callback Request Body</h2>
+                <button class="modal-close" onclick="closeCallbackModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 12px; color: var(--text-secondary);">
+                    This is the exact JSON payload sent to GUVI's evaluation endpoint:
+                </p>
+                <div class="callback-url-display" id="callbackUrlDisplay" style="background: var(--bg-tertiary); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; word-break: break-all;">
+                    POST https://hackathon.guvi.in/api/updateHoneyPotFinalResult
+                </div>
+                <pre id="callbackPayloadContent" style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; overflow-x: auto; max-height: 400px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word;">
+                    <!-- Callback payload will be inserted here -->
+                </pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCallbackModal()">Close</button>
+                <button class="btn btn-primary" onclick="copyCallbackPayload()">📋 Copy JSON</button>
             </div>
         </div>
     </div>

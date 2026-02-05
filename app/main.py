@@ -168,6 +168,16 @@ if ui_path.exists():
         if index_file.exists():
             return FileResponse(index_file)
         return {"message": "UI files not found"}
+    
+    # Serve GUVI Tester at /guvi-test
+    @app.get("/guvi-test", include_in_schema=False)
+    async def serve_guvi_tester():
+        """Serve the GUVI Format Tester UI."""
+        from fastapi.responses import FileResponse
+        guvi_test_file = ui_path / "guvi-test.html"
+        if guvi_test_file.exists():
+            return FileResponse(guvi_test_file)
+        return {"message": "GUVI Tester UI not found"}
 
 
 @app.exception_handler(Exception)

@@ -57,13 +57,14 @@ class Settings:
         
         # Groq LLM Configuration
         self.GROQ_API_KEY: Optional[str] = os.getenv("GROQ_API_KEY")
-        self.GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-        self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", "500"))
+        self.GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        self.GROQ_MAX_TOKENS: int = int(os.getenv("GROQ_MAX_TOKENS", "256"))
         self.GROQ_TEMPERATURE: float = float(os.getenv("GROQ_TEMPERATURE", "0.7"))
         
         # Database Configuration
-        self.POSTGRES_URL: Optional[str] = os.getenv("POSTGRES_URL")
-        self.REDIS_URL: Optional[str] = os.getenv("REDIS_URL")
+        # Empty string treated as None (disabled) for faster in-memory only mode
+        self.POSTGRES_URL: Optional[str] = os.getenv("POSTGRES_URL") or None
+        self.REDIS_URL: Optional[str] = os.getenv("REDIS_URL") or None
         self.CHROMADB_PATH: str = os.getenv("CHROMADB_PATH", "./chroma_data")
         
         # API Configuration

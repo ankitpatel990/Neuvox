@@ -37,6 +37,7 @@ from app.api.schemas import (
     HealthDependencies,
     BatchResultItem,
     UnifiedEngageRequest,
+    GUVICallbackPayload,
 )
 from app.api.auth import verify_api_key
 from app.config import settings
@@ -205,15 +206,25 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
             logger.info("Session state saved to Redis, continuing without PostgreSQL persistence")
         
         # Build conversation history for response
-        conversation_history_response = [
-            MessageEntry(
-                turn=msg.get("turn", 0),
-                sender=msg.get("sender", "unknown"),
-                message=msg.get("message", ""),
-                timestamp=msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+        conversation_history_response = []
+        for msg in result.get("messages", []):
+            # Handle timestamp - ensure it's a string for MessageEntry
+            raw_ts = msg.get("timestamp")
+            if isinstance(raw_ts, int):
+                timestamp = datetime.utcfromtimestamp(raw_ts / 1000).isoformat() + "Z"
+            elif isinstance(raw_ts, str):
+                timestamp = raw_ts
+            else:
+                timestamp = datetime.utcnow().isoformat() + "Z"
+            
+            conversation_history_response.append(
+                MessageEntry(
+                    turn=msg.get("turn", 0),
+                    sender=msg.get("sender", "unknown"),
+                    message=msg.get("message", ""),
+                    timestamp=timestamp,
+                )
             )
-            for msg in result.get("messages", [])
-        ]
         
         # Get the agent's response (last message from agent)
         agent_messages = [m for m in result.get("messages", []) if m.get("sender") == "agent"]
@@ -253,10 +264,34 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
         max_turns_reached = turn_count >= max_turns
         terminated = result.get("terminated", False)
         
+        # Initialize callback payload (will be included in response if triggered)
+        guvi_callback_payload = None
+        
         if should_send_callback(turn_count, max_turns_reached, extraction_confidence, terminated):
             # Send callback to GUVI (async-safe, non-blocking)
             try:
                 total_messages = len(messages_list)
+                
+                # Build the callback payload for display in UI
+                callback_url = settings.GUVI_CALLBACK_URL or "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
+                
+                guvi_callback_payload = GUVICallbackPayload(
+                    sessionId=session_id,
+                    scamDetected=True,
+                    totalMessagesExchanged=total_messages,
+                    extractedIntelligence={
+                        "bankAccounts": intel.get("bank_accounts", []),
+                        "upiIds": intel.get("upi_ids", []),
+                        "phishingLinks": intel.get("phishing_links", []),
+                        "phoneNumbers": intel.get("phone_numbers", []),
+                        "suspiciousKeywords": suspicious_keywords,
+                    },
+                    agentNotes=agent_notes,
+                    callback_triggered=True,
+                    callback_url=callback_url,
+                    callback_success=None,  # Will be updated after sending
+                )
+                
                 callback_success = send_final_result_to_guvi(
                     session_id=session_id,
                     scam_detected=True,
@@ -266,12 +301,18 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
                     scam_indicators=scam_indicators,
                     agent_notes=agent_notes,
                 )
+                
+                # Update callback success status
+                guvi_callback_payload.callback_success = callback_success
+                
                 if callback_success:
                     logger.info(f"GUVI callback sent successfully for session {session_id}")
                 else:
                     logger.warning(f"GUVI callback failed for session {session_id}")
             except Exception as e:
                 logger.error(f"GUVI callback error: {e}")
+                if guvi_callback_payload:
+                    guvi_callback_payload.callback_success = False
         
         # Calculate final processing time
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -297,8 +338,9 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
                 processing_time_ms=processing_time_ms,
                 model_version="1.0.0",
                 detection_model="indic-bert",
-                engagement_model="groq-llama-3.1-70b",
+                engagement_model="groq-llama-3.1-8b-instant",
             ),
+            guvi_callback=guvi_callback_payload,  # Include callback payload when triggered
         )
         
     except ValueError as e:
@@ -360,15 +402,25 @@ async def get_session(session_id: str) -> SessionResponse:
         if session_state:
             # Build response from Redis session state
             messages = session_state.get("messages", [])
-            conversation_history = [
-                MessageEntry(
-                    turn=msg.get("turn", 0),
-                    sender=msg.get("sender", "unknown"),
-                    message=msg.get("message", ""),
-                    timestamp=msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            conversation_history = []
+            for msg in messages:
+                # Handle timestamp - ensure it's a string
+                raw_ts = msg.get("timestamp")
+                if isinstance(raw_ts, int):
+                    timestamp = datetime.utcfromtimestamp(raw_ts / 1000).isoformat() + "Z"
+                elif isinstance(raw_ts, str):
+                    timestamp = raw_ts
+                else:
+                    timestamp = datetime.utcnow().isoformat() + "Z"
+                
+                conversation_history.append(
+                    MessageEntry(
+                        turn=msg.get("turn", 0),
+                        sender=msg.get("sender", "unknown"),
+                        message=msg.get("message", ""),
+                        timestamp=timestamp,
+                    )
                 )
-                for msg in messages
-            ]
             
             intel = session_state.get("extracted_intel", {})
             extracted_intelligence = ExtractedIntelligence(
@@ -401,15 +453,25 @@ async def get_session(session_id: str) -> SessionResponse:
         
         if conversation:
             messages = conversation.get("messages", [])
-            conversation_history = [
-                MessageEntry(
-                    turn=msg.get("turn", 0),
-                    sender=msg.get("sender", "unknown"),
-                    message=msg.get("message", ""),
-                    timestamp=msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            conversation_history = []
+            for msg in messages:
+                # Handle timestamp - ensure it's a string
+                raw_ts = msg.get("timestamp")
+                if isinstance(raw_ts, int):
+                    timestamp = datetime.utcfromtimestamp(raw_ts / 1000).isoformat() + "Z"
+                elif isinstance(raw_ts, str):
+                    timestamp = raw_ts
+                else:
+                    timestamp = datetime.utcnow().isoformat() + "Z"
+                
+                conversation_history.append(
+                    MessageEntry(
+                        turn=msg.get("turn", 0),
+                        sender=msg.get("sender", "unknown"),
+                        message=msg.get("message", ""),
+                        timestamp=timestamp,
+                    )
                 )
-                for msg in messages
-            ]
             
             intel = conversation.get("extracted_intel", {})
             extracted_intelligence = ExtractedIntelligence(
@@ -721,10 +783,20 @@ def _parse_guvi_format(request_body: Dict[str, Any]) -> tuple:
             if sender == "user":
                 sender = "agent"
             
+            # Handle timestamp - convert epoch ms (integer) to ISO-8601 string
+            raw_ts = item.get("timestamp")
+            if isinstance(raw_ts, int):
+                # Convert epoch milliseconds to ISO-8601 string
+                timestamp = datetime.utcfromtimestamp(raw_ts / 1000).isoformat() + "Z"
+            elif isinstance(raw_ts, str):
+                timestamp = raw_ts
+            else:
+                timestamp = datetime.utcnow().isoformat() + "Z"
+            
             normalized_history.append({
                 "sender": sender,
                 "message": item.get("text", ""),
-                "timestamp": item.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+                "timestamp": timestamp,
             })
     
     return message_text, session_id, language, normalized_history
@@ -752,11 +824,20 @@ def _rebuild_session_from_history(
     # Build messages list with turn numbers
     messages = []
     for i, msg in enumerate(conversation_history):
+        # Handle timestamp - ensure it's a string (already normalized by _parse_guvi_format)
+        raw_ts = msg.get("timestamp")
+        if isinstance(raw_ts, int):
+            timestamp = datetime.utcfromtimestamp(raw_ts / 1000).isoformat() + "Z"
+        elif isinstance(raw_ts, str):
+            timestamp = raw_ts
+        else:
+            timestamp = datetime.utcnow().isoformat() + "Z"
+        
         messages.append({
             "turn": i + 1,
             "sender": msg.get("sender", "scammer"),
             "message": msg.get("message", ""),
-            "timestamp": msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
+            "timestamp": timestamp,
         })
     
     turn_count = len(messages)

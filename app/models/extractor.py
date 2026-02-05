@@ -88,8 +88,12 @@ class IntelligenceExtractor:
             # Bank accounts: 9-18 digits (not starting with 0 typically)
             "bank_accounts": r"\b[1-9]\d{8,17}\b",
             
-            # IFSC codes: 4 letters + 0 + 6 alphanumeric
-            "ifsc_codes": r"\b[A-Z]{4}0[A-Z0-9]{6}\b",
+            # IFSC codes: 4-5 letters + (0 or O) + 6 alphanumeric
+            # Handle common typos:
+            # - O instead of 0 in 5th position
+            # - Extra letter (e.g., SBIIN instead of SBIN)
+            # We're lenient here because we want to CAPTURE scammer data
+            "ifsc_codes": r"\b[A-Z]{4,5}[0O][A-Z0-9]{6}\b",
             
             # Phone numbers: Indian mobile format with optional +91
             "phone_numbers": r"(?:\+91[\s\-]?)?(?:0)?[6-9]\d{9}\b",
@@ -160,6 +164,22 @@ class IntelligenceExtractor:
         intel["ifsc_codes"] = self._validate_ifsc_codes(intel["ifsc_codes"])
         intel["phone_numbers"] = self._normalize_phone_numbers(intel["phone_numbers"])
         intel["phishing_links"] = self._validate_phishing_links(intel["phishing_links"])
+        
+        # Remove any bank accounts that are actually phone numbers
+        # Phone numbers are normalized to +91XXXXXXXXXX format
+        phone_digits = set()
+        for phone in intel["phone_numbers"]:
+            # Extract the 10-digit number from +91XXXXXXXXXX
+            digits = phone.replace("+91", "")
+            phone_digits.add(digits)
+            # Also add with 91 prefix in case it was captured that way
+            phone_digits.add("91" + digits)
+        
+        # Filter out bank accounts that match phone numbers
+        intel["bank_accounts"] = [
+            acc for acc in intel["bank_accounts"]
+            if acc not in phone_digits and acc[-10:] not in phone_digits
+        ]
         
         # Use spaCy NER for additional entities if available
         if self.nlp is not None:
@@ -246,6 +266,13 @@ class IntelligenceExtractor:
         """
         Validate bank account numbers for precision >85% (AC-3.1.2).
         
+        Bank account numbers in India:
+        - SBI: 11 digits
+        - HDFC: 13-14 digits
+        - ICICI: 12 digits
+        - Axis: 15 digits
+        - Other banks: 9-18 digits
+        
         Args:
             accounts: List of potential account numbers
             
@@ -259,13 +286,13 @@ class IntelligenceExtractor:
             if len(account) < 9 or len(account) > 18:
                 continue
             
-            # Exclude exactly 10 digits (likely phone numbers)
-            if len(account) == 10:
+            # Exclude exactly 10-digit numbers starting with 6,7,8,9 (Indian phone numbers)
+            if len(account) == 10 and account[0] in "6789":
                 continue
             
-            # Exclude common patterns that aren't accounts
-            # OTPs are typically 4-6 digits (already excluded by length)
-            # PINs are 4-6 digits (already excluded)
+            # Exclude if it looks like +91 phone (starts with 91 + 6-9 and is 12 digits)
+            if len(account) == 12 and account[:2] == "91" and account[2] in "6789":
+                continue
             
             # Check for repeated digits (unlikely to be valid account)
             if len(set(account)) == 1:
@@ -280,55 +307,78 @@ class IntelligenceExtractor:
         return list(set(validated))
     
     def _is_sequential(self, number: str) -> bool:
-        """Check if number is a sequential pattern."""
+        """
+        Check if number is an OBVIOUS sequential pattern.
+        
+        We only reject very obvious patterns like:
+        - 123456789 (ascending from 1)
+        - 111111111 (all same digits - handled separately)
+        
+        We do NOT reject patterns like 98765432109876 because:
+        1. Real bank accounts can have sequential parts
+        2. Scammers might give real/fake accounts with any pattern
+        3. For a honeypot, we want to CAPTURE data, not reject it
+        """
         if len(number) < 9:
             return False
         
-        # Check ascending
-        ascending = "".join(str(i % 10) for i in range(len(number)))
-        if number == ascending[:len(number)]:
+        # Only reject the most obvious ascending patterns starting from 1
+        # e.g., 123456789, 1234567890123456
+        obvious_ascending = "1234567890" * 2  # Covers up to 18 digits
+        if number == obvious_ascending[:len(number)]:
             return True
         
-        # Check descending
-        descending = "".join(str(9 - (i % 10)) for i in range(len(number)))
-        if number == descending[:len(number)]:
-            return True
-        
+        # Don't reject descending or other patterns - they could be real accounts
         return False
     
     def _validate_ifsc_codes(self, ifsc_codes: List[str]) -> List[str]:
         """
-        Validate IFSC codes for precision >95% (AC-3.1.3).
+        Validate IFSC codes - lenient to capture scammer data even with typos.
         
-        IFSC format: 4 letters (bank code) + 0 + 6 alphanumeric (branch code)
+        Standard IFSC format: 4 letters + 0 + 6 alphanumeric (11 chars)
+        But we accept typos like:
+        - SBIIN0010789 (12 chars with extra letter)
+        - SBIN0O10789 (O instead of 0)
+        
+        For a honeypot, we want to CAPTURE the data scammers provide.
         
         Args:
             ifsc_codes: List of potential IFSC codes
             
         Returns:
-            List of validated IFSC codes
+            List of validated/normalized IFSC codes
         """
         validated = []
         
         for ifsc in ifsc_codes:
             ifsc_upper = ifsc.upper()
             
-            # Must be exactly 11 characters
-            if len(ifsc_upper) != 11:
+            # Accept 11-12 characters (allow for typos like SBIIN)
+            if len(ifsc_upper) < 11 or len(ifsc_upper) > 12:
                 continue
             
-            # First 4 must be letters (bank code)
-            if not ifsc_upper[:4].isalpha():
+            # First 4 must be letters (bank code) - for 12 char, first 5 are letters
+            letter_prefix_len = 4 if len(ifsc_upper) == 11 else 5
+            if not ifsc_upper[:letter_prefix_len].isalpha():
                 continue
             
-            # 5th character must be 0
-            if ifsc_upper[4] != "0":
+            # Replace all O (letter) with 0 (zero) in numeric parts
+            fixed_suffix = ""
+            for char in ifsc_upper[letter_prefix_len:]:
+                if char == "O":
+                    fixed_suffix += "0"
+                else:
+                    fixed_suffix += char
+            
+            # Check that after the letter prefix, first char is 0
+            if fixed_suffix and fixed_suffix[0] != "0":
                 continue
             
-            # Last 6 must be alphanumeric (branch code)
-            if not ifsc_upper[5:].isalnum():
+            # Rest must be alphanumeric
+            if not fixed_suffix[1:].isalnum():
                 continue
             
+            # Store the original (we want to capture what scammer actually sent)
             validated.append(ifsc_upper)
         
         return list(set(validated))
@@ -379,6 +429,9 @@ class IntelligenceExtractor:
         """
         Validate and filter phishing links for precision >95% (AC-3.1.5).
         
+        In a scam context, we want to capture ALL links that aren't from
+        well-known legitimate domains, as they could be phishing attempts.
+        
         Args:
             links: List of potential phishing links
             
@@ -405,13 +458,16 @@ class IntelligenceExtractor:
                 else:
                     domain_clean = domain
                 
-                # Skip legitimate domains
+                # Skip only well-known legitimate domains
                 if domain_clean in LEGITIMATE_DOMAINS or domain in LEGITIMATE_DOMAINS:
                     continue
                 
-                # Flag as suspicious if matches suspicious patterns
-                is_suspicious = False
+                # In a scam context, ANY unknown link is suspicious
+                # Since this is a honeypot system, we want to capture all links
+                # that scammers share - they're likely phishing attempts
+                is_suspicious = True
                 
+                # Extra flags for definitely suspicious patterns
                 for pattern in SUSPICIOUS_DOMAIN_PATTERNS:
                     if re.search(pattern, link, re.IGNORECASE):
                         is_suspicious = True

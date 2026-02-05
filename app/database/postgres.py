@@ -9,6 +9,7 @@ Provides connection management and CRUD operations for:
 
 from typing import Dict, List, Optional, Any
 import os
+import time
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, text, inspect
@@ -23,6 +24,11 @@ logger = get_logger(__name__)
 # Global engine and session factory
 engine = None
 SessionLocal = None
+
+# Track if PostgreSQL is known to be unavailable (to skip connection attempts)
+_postgres_unavailable: bool = False
+_postgres_last_check: float = 0
+_POSTGRES_RECHECK_INTERVAL = 60  # Only try reconnecting every 60 seconds
 
 
 def init_engine() -> None:
@@ -50,6 +56,7 @@ def init_engine() -> None:
             pool_size=5,
             max_overflow=10,
             echo=False,  # Set to True for SQL debugging
+            connect_args={"connect_timeout": 2},  # 2 second timeout for faster fallback
         )
         SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
         logger.info("PostgreSQL engine initialized successfully")
@@ -258,6 +265,16 @@ def save_conversation(session_id: str, conversation_data: Dict[str, Any]) -> int
     Returns:
         Conversation ID (0 if failed)
     """
+    global _postgres_unavailable, _postgres_last_check
+    
+    # Skip if PostgreSQL was recently unavailable (fast path)
+    if _postgres_unavailable:
+        if time.time() - _postgres_last_check < _POSTGRES_RECHECK_INTERVAL:
+            logger.debug("PostgreSQL unavailable (cached), skipping save")
+            return 0
+        # Time to recheck
+        _postgres_unavailable = False
+    
     if engine is None:
         init_engine()
     
@@ -334,6 +351,9 @@ def save_conversation(session_id: str, conversation_data: Dict[str, Any]) -> int
             
     except SQLAlchemyError as e:
         logger.error(f"Failed to save conversation: {e}")
+        # Mark PostgreSQL as unavailable to skip future attempts
+        _postgres_unavailable = True
+        _postgres_last_check = time.time()
         return 0
 
 

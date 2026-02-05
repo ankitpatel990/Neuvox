@@ -4,7 +4,7 @@ Pydantic schemas for API request/response validation.
 Defines all data models used by the ScamShield AI API endpoints.
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 import uuid
@@ -142,6 +142,19 @@ class ResponseMetadata(BaseModel):
     engagement_model: Optional[str] = Field(None, description="Model used for engagement")
 
 
+class GUVICallbackPayload(BaseModel):
+    """Schema for GUVI callback payload - shows what was sent to GUVI endpoint."""
+    
+    sessionId: str = Field(..., description="Session identifier")
+    scamDetected: bool = Field(..., description="Whether scam was detected")
+    totalMessagesExchanged: int = Field(..., description="Total messages in conversation")
+    extractedIntelligence: Dict[str, Any] = Field(..., description="Extracted intelligence data")
+    agentNotes: str = Field(..., description="Summary of scammer behavior")
+    callback_triggered: bool = Field(True, description="Whether callback was triggered")
+    callback_url: Optional[str] = Field(None, description="URL the callback was sent to")
+    callback_success: Optional[bool] = Field(None, description="Whether callback was successful")
+
+
 class EngageResponse(BaseModel):
     """Response schema for POST /api/v1/honeypot/engage when scam is detected."""
     
@@ -174,6 +187,10 @@ class EngageResponse(BaseModel):
     )
     message: Optional[str] = Field(None, description="Human-readable response message")
     metadata: Optional[ResponseMetadata] = Field(None, description="Response metadata")
+    guvi_callback: Optional[GUVICallbackPayload] = Field(
+        None,
+        description="GUVI callback payload - only present when callback is triggered (confidence >= 85%)",
+    )
 
 
 class HealthDependencies(BaseModel):
@@ -302,9 +319,9 @@ class GUVIMessageInput(BaseModel):
         max_length=5000,
         description="Message content",
     )
-    timestamp: Optional[str] = Field(
+    timestamp: Optional[Union[str, int]] = Field(
         None,
-        description="Message timestamp in ISO-8601 format",
+        description="Message timestamp - accepts ISO-8601 string or epoch time in ms (integer)",
     )
 
 
@@ -348,7 +365,10 @@ class GUVIConversationHistoryItem(BaseModel):
     
     sender: str = Field(..., description="Message sender: 'scammer' or 'user'")
     text: str = Field(..., description="Message content")
-    timestamp: Optional[str] = Field(None, description="Message timestamp")
+    timestamp: Optional[Union[str, int]] = Field(
+        None, 
+        description="Message timestamp - accepts ISO-8601 string or epoch time in ms (integer)"
+    )
 
 
 class GUVIEngageRequest(BaseModel):

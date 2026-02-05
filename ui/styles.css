@@ -802,6 +802,82 @@ html, body {
     to { transform: rotate(360deg); }
 }
 
+/* GUVI Callback Section */
+.callback-status {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(0, 212, 255, 0.1) 100%);
+    border: 1px solid var(--success);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+}
+
+.callback-triggered {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.callback-icon {
+    font-size: 1.5rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.callback-text {
+    font-weight: 600;
+    color: var(--success);
+    font-size: 1rem;
+}
+
+.callback-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.callback-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.callback-label {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.callback-value {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+}
+
+.callback-url {
+    font-size: 0.75rem;
+    word-break: break-all;
+    text-align: right;
+    max-width: 180px;
+    color: var(--accent-primary);
+}
+
+/* System Messages */
+.system-message {
+    text-align: center;
+    padding: 10px;
+    color: var(--success);
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: var(--radius-sm);
+    margin: var(--spacing-sm) 0;
+    font-size: 0.9rem;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .main-content {

@@ -7,7 +7,7 @@
 // ============================================================================
 // Configuration
 // ============================================================================
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'http://127.0.0.1:8005';  // Your server is running on port 8005
 const API_ENDPOINTS = {
     engage: `${API_BASE_URL}/api/v1/honeypot/engage`,
     session: `${API_BASE_URL}/api/v1/honeypot/session`,
@@ -38,6 +38,7 @@ let state = {
     },
     lastResponse: null,
     isLoading: false,
+    lastCallbackPayload: null,  // Store the last GUVI callback payload
 };
 
 // ============================================================================
@@ -172,6 +173,12 @@ async function sendMessage() {
             }
         }
         
+        // Check if GUVI callback was triggered
+        if (data.guvi_callback) {
+            state.lastCallbackPayload = data.guvi_callback;
+            updateCallbackStatus(data.guvi_callback);
+        }
+        
         console.log('📨 API Response:', data);
         
     } catch (error) {
@@ -231,6 +238,7 @@ function newSession() {
     // Reset intelligence
     resetIntelligence();
     resetAgentInfo();
+    resetCallbackStatus();
     
     console.log('🔄 New session started');
 }
@@ -573,6 +581,115 @@ function downloadReport() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+// ============================================================================
+// GUVI Callback Functions
+// ============================================================================
+
+/**
+ * Update callback status display
+ */
+function updateCallbackStatus(callbackData) {
+    const section = document.getElementById('callbackSection');
+    const successEl = document.getElementById('callbackSuccess');
+    const urlEl = document.getElementById('callbackUrl');
+    
+    // Show the callback section
+    section.style.display = 'block';
+    
+    // Update status
+    if (callbackData.callback_success === true) {
+        successEl.textContent = '✅ Sent Successfully';
+        successEl.style.color = 'var(--success)';
+    } else if (callbackData.callback_success === false) {
+        successEl.textContent = '❌ Failed';
+        successEl.style.color = 'var(--danger)';
+    } else {
+        successEl.textContent = '⏳ Pending';
+        successEl.style.color = 'var(--warning)';
+    }
+    
+    // Update URL
+    if (callbackData.callback_url) {
+        urlEl.textContent = callbackData.callback_url;
+    }
+    
+    // Add system message about callback
+    addSystemMessage(`🚀 GUVI Callback Triggered! Extraction confidence: ${((state.lastResponse?.extracted_intelligence?.extraction_confidence || 0) * 100).toFixed(0)}%`);
+    
+    console.log('📡 GUVI Callback Triggered:', callbackData);
+}
+
+/**
+ * Show callback payload modal
+ */
+function showCallbackPayload() {
+    if (!state.lastCallbackPayload) {
+        alert('No callback payload available');
+        return;
+    }
+    
+    const modal = document.getElementById('callbackModal');
+    const content = document.getElementById('callbackPayloadContent');
+    const urlDisplay = document.getElementById('callbackUrlDisplay');
+    
+    // Build the payload to display (without internal fields)
+    const displayPayload = {
+        sessionId: state.lastCallbackPayload.sessionId,
+        scamDetected: state.lastCallbackPayload.scamDetected,
+        totalMessagesExchanged: state.lastCallbackPayload.totalMessagesExchanged,
+        extractedIntelligence: state.lastCallbackPayload.extractedIntelligence,
+        agentNotes: state.lastCallbackPayload.agentNotes,
+    };
+    
+    // Update URL display
+    urlDisplay.textContent = `POST ${state.lastCallbackPayload.callback_url || 'https://hackathon.guvi.in/api/updateHoneyPotFinalResult'}`;
+    
+    // Format and display JSON
+    content.textContent = JSON.stringify(displayPayload, null, 2);
+    
+    modal.classList.add('active');
+}
+
+/**
+ * Close callback modal
+ */
+function closeCallbackModal() {
+    document.getElementById('callbackModal').classList.remove('active');
+}
+
+/**
+ * Copy callback payload to clipboard
+ */
+function copyCallbackPayload() {
+    if (!state.lastCallbackPayload) return;
+    
+    const displayPayload = {
+        sessionId: state.lastCallbackPayload.sessionId,
+        scamDetected: state.lastCallbackPayload.scamDetected,
+        totalMessagesExchanged: state.lastCallbackPayload.totalMessagesExchanged,
+        extractedIntelligence: state.lastCallbackPayload.extractedIntelligence,
+        agentNotes: state.lastCallbackPayload.agentNotes,
+    };
+    
+    navigator.clipboard.writeText(JSON.stringify(displayPayload, null, 2))
+        .then(() => {
+            alert('Callback payload copied to clipboard!');
+        })
+        .catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy to clipboard');
+        });
+}
+
+/**
+ * Reset callback status
+ */
+function resetCallbackStatus() {
+    const section = document.getElementById('callbackSection');
+    section.style.display = 'none';
+    state.lastCallbackPayload = null;
 }
 
 // ============================================================================

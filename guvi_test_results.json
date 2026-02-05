@@ -1,0 +1,297 @@
+{
+  "total": 58,
+  "passed": 55,
+  "failed": 3,
+  "tests": [
+    {
+      "name": "Health endpoint responds",
+      "passed": true,
+      "details": "Status: 200"
+    },
+    {
+      "name": "Health returns status field",
+      "passed": true,
+      "details": "Status: degraded"
+    },
+    {
+      "name": "Health returns version field",
+      "passed": true,
+      "details": "Version: 1.0.0"
+    },
+    {
+      "name": "Request with x-api-key header succeeds",
+      "passed": true,
+      "details": "Status: 200"
+    },
+    {
+      "name": "Content-Type: application/json accepted",
+      "passed": true,
+      "details": "JSON content type working"
+    },
+    {
+      "name": "First message request succeeds",
+      "passed": true,
+      "details": "Status: 200"
+    },
+    {
+      "name": "Empty conversationHistory[] accepted",
+      "passed": true,
+      "details": "Empty array handled correctly"
+    },
+    {
+      "name": "sessionId (camelCase) accepted",
+      "passed": true,
+      "details": "Session: first-msg-76c9ed01-3e32-4398-8"
+    },
+    {
+      "name": "Nested message object accepted",
+      "passed": true,
+      "details": "sender=scammer, text present"
+    },
+    {
+      "name": "Epoch timestamp (integer) accepted",
+      "passed": true,
+      "details": "Timestamp: 1770296473538"
+    },
+    {
+      "name": "Metadata fields accepted (channel, language, locale)",
+      "passed": true,
+      "details": "channel=SMS, language=English"
+    },
+    {
+      "name": "Scam detected in bank fraud message",
+      "passed": true,
+      "details": "Confidence: 0.82"
+    },
+    {
+      "name": "Follow-up message request succeeds",
+      "passed": true,
+      "details": "Status: 200"
+    },
+    {
+      "name": "conversationHistory array processed",
+      "passed": true,
+      "details": "History items: 2"
+    },
+    {
+      "name": "Both 'scammer' and 'user' senders accepted in history",
+      "passed": true,
+      "details": "scammer and user senders in history"
+    },
+    {
+      "name": "Scam detected in UPI fraud message",
+      "passed": false,
+      "details": "Confidence: 0.56"
+    },
+    {
+      "name": "sender='scammer' accepted",
+      "passed": true,
+      "details": "Scammer sender works"
+    },
+    {
+      "name": "channel='SMS' accepted",
+      "passed": true,
+      "details": "Channel SMS works"
+    },
+    {
+      "name": "channel='WhatsApp' accepted",
+      "passed": true,
+      "details": "Channel WhatsApp works"
+    },
+    {
+      "name": "channel='Email' accepted",
+      "passed": true,
+      "details": "Channel Email works"
+    },
+    {
+      "name": "channel='Chat' accepted",
+      "passed": true,
+      "details": "Channel Chat works"
+    },
+    {
+      "name": "language='English' accepted",
+      "passed": true,
+      "details": "Language English works"
+    },
+    {
+      "name": "language='Hindi' accepted",
+      "passed": true,
+      "details": "Language Hindi works"
+    },
+    {
+      "name": "locale='IN' accepted",
+      "passed": true,
+      "details": "Locale IN works"
+    },
+    {
+      "name": "Response contains 'status' field",
+      "passed": true,
+      "details": "status: success"
+    },
+    {
+      "name": "status='success' for valid request",
+      "passed": true,
+      "details": "status: success"
+    },
+    {
+      "name": "Response contains 'reply' field",
+      "passed": true,
+      "details": "reply present: Yes"
+    },
+    {
+      "name": "reply contains agent response when scam detected",
+      "passed": true,
+      "details": "reply: I'm in a bit of a rush, can I just send the paymen..."
+    },
+    {
+      "name": "Turn 1: Initial message processed",
+      "passed": true,
+      "details": "Scam: True, Reply: My bank account blocked? That ..."
+    },
+    {
+      "name": "Turn 2: Follow-up message processed",
+      "passed": true,
+      "details": "Reply: I'm a bit confused, I don't ha..."
+    },
+    {
+      "name": "Multi-turn conversation handled",
+      "passed": true,
+      "details": "Both turns successful"
+    },
+    {
+      "name": "Agent does NOT reveal scam detection",
+      "passed": true,
+      "details": "No detection keywords in reply"
+    },
+    {
+      "name": "Agent responds in human-like manner",
+      "passed": true,
+      "details": "Response length: 155 chars"
+    },
+    {
+      "name": "Intelligence extraction request succeeds",
+      "passed": true,
+      "details": "Status: 200"
+    },
+    {
+      "name": "Bank accounts extracted",
+      "passed": true,
+      "details": "Found: ['9876543210123456']"
+    },
+    {
+      "name": "UPI IDs extracted",
+      "passed": true,
+      "details": "Found: ['scammer@paytm']"
+    },
+    {
+      "name": "Phishing links extracted",
+      "passed": true,
+      "details": "Found: ['http://fake-bank.com/verify']"
+    },
+    {
+      "name": "Phone numbers extracted",
+      "passed": true,
+      "details": "Found: ['+919876543210']"
+    },
+    {
+      "name": "Suspicious keywords extracted",
+      "passed": true,
+      "details": "Found: ['urgent', 'account', 'upi', 'immediately', 'verify']..."
+    },
+    {
+      "name": "Response has session_id (for callback sessionId)",
+      "passed": true,
+      "details": "session_id: callback-0738d88b-6156-4614-99"
+    },
+    {
+      "name": "Response has scam_detected (for callback scamDetected)",
+      "passed": true,
+      "details": "scam_detected: True"
+    },
+    {
+      "name": "Response has extracted_intelligence (for callback)",
+      "passed": true,
+      "details": "Intelligence object present"
+    },
+    {
+      "name": "Intel has bank_accounts (maps to bankAccounts)",
+      "passed": true,
+      "details": "bank_accounts: []"
+    },
+    {
+      "name": "Intel has upi_ids (maps to upiIds)",
+      "passed": true,
+      "details": "upi_ids: ['fraud@ybl']"
+    },
+    {
+      "name": "Intel has phishing_links (maps to phishingLinks)",
+      "passed": true,
+      "details": "phishing_links: ['http://scam-site.com']"
+    },
+    {
+      "name": "Intel has phone_numbers (maps to phoneNumbers)",
+      "passed": true,
+      "details": "phone_numbers: ['+918765432109', '+917890123456']"
+    },
+    {
+      "name": "Intel has suspicious_keywords (maps to suspiciousKeywords)",
+      "passed": true,
+      "details": "suspicious_keywords: ['account', 'urgent', 'upi']"
+    },
+    {
+      "name": "Response has agent_notes (for callback agentNotes)",
+      "passed": true,
+      "details": "agent_notes: Scammer used urgency tactics. attempted payment re"
+    },
+    {
+      "name": "Non-scam message processed successfully",
+      "passed": true,
+      "details": "Status: 200"
+    },
+    {
+      "name": "Non-scam correctly identified (scam_detected=false or low confidence)",
+      "passed": true,
+      "details": "scam_detected: False, confidence: 0.42"
+    },
+    {
+      "name": "Average response time < 2000ms",
+      "passed": false,
+      "details": "Avg: 8896ms"
+    },
+    {
+      "name": "Max response time < 5000ms",
+      "passed": false,
+      "details": "Max: 13870ms"
+    },
+    {
+      "name": "Bank Fraud detected",
+      "passed": true,
+      "details": "Confidence: 0.94"
+    },
+    {
+      "name": "UPI Fraud detected",
+      "passed": true,
+      "details": "Confidence: 0.69"
+    },
+    {
+      "name": "Phishing detected",
+      "passed": true,
+      "details": "Confidence: 0.69"
+    },
+    {
+      "name": "Fake Offer/Lottery detected",
+      "passed": true,
+      "details": "Confidence: 0.91"
+    },
+    {
+      "name": "Authority Impersonation detected",
+      "passed": true,
+      "details": "Confidence: 0.68"
+    },
+    {
+      "name": "Urgency Tactics detected",
+      "passed": true,
+      "details": "Confidence: 0.79"
+    }
+  ]
+}

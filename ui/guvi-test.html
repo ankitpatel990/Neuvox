@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUVI Format Tester - ScamShield AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/ui/guvi-test.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">🧪</span>
+                    <div class="logo-text">
+                        <h1>GUVI Tester</h1>
+                        <span class="subtitle">Format Compliance</span>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-tab="single">
+                    <span class="nav-icon">📨</span>
+                    <span>Single Message</span>
+                </button>
+                <button class="nav-item" data-tab="multi">
+                    <span class="nav-icon">💬</span>
+                    <span>Multi-Turn</span>
+                </button>
+                <button class="nav-item" data-tab="callback">
+                    <span class="nav-icon">📤</span>
+                    <span>Callback Test</span>
+                </button>
+                <button class="nav-item" data-tab="checklist">
+                    <span class="nav-icon">✅</span>
+                    <span>Checklist</span>
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="api-config">
+                    <label>API Base URL</label>
+                    <input type="text" id="apiBaseUrl" value="http://127.0.0.1:8005">
+                </div>
+                <div class="api-config">
+                    <label>x-api-key</label>
+                    <input type="text" id="apiKey" value="" placeholder="Not required in dev mode">
+                </div>
+                <div class="connection-status" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Not connected</span>
+                </div>
+                <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Tab: Single Message Test -->
+            <section class="tab-content active" id="tab-single">
+                <div class="page-header">
+                    <h2>📨 Single Message Test (GUVI Format)</h2>
+                    <p>Test the exact GUVI input format for a single scam message</p>
+                </div>
+                
+                <div class="content-grid">
+                    <!-- Request Builder -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📝 Request Builder</h3>
+                            <button class="btn btn-sm" onclick="loadGuviExample('first')">Load First Message Example</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Session ID</label>
+                                <input type="text" id="singleSessionId" value="test-session-001" placeholder="wertyu-dfghj-ertyui">
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Sender</label>
+                                    <select id="singleSender">
+                                        <option value="scammer">scammer</option>
+                                        <option value="user">user</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Channel</label>
+                                    <select id="singleChannel">
+                                        <option value="SMS">SMS</option>
+                                        <option value="WhatsApp">WhatsApp</option>
+                                        <option value="Email">Email</option>
+                                        <option value="Chat">Chat</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Language</label>
+                                    <select id="singleLanguage">
+                                        <option value="English">English</option>
+                                        <option value="Hindi">Hindi</option>
+                                        <option value="Hinglish">Hinglish</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Locale</label>
+                                    <select id="singleLocale">
+                                        <option value="IN">IN (India)</option>
+                                        <option value="US">US</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Message Text</label>
+                                <textarea id="singleMessageText" rows="3" placeholder="Your bank account will be blocked today. Verify immediately."></textarea>
+                            </div>
+                            
+                            <div class="example-btns">
+                                <span>Quick Examples:</span>
+                                <button class="btn btn-xs" onclick="setMessage('lottery')">🎰 Lottery</button>
+                                <button class="btn btn-xs" onclick="setMessage('bank')">🏦 Bank</button>
+                                <button class="btn btn-xs" onclick="setMessage('police')">👮 Police</button>
+                                <button class="btn btn-xs" onclick="setMessage('upi')">📱 UPI</button>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-primary" onclick="sendSingleMessage()">
+                                <span>Send Request</span>
+                                <span class="icon">→</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Request Preview -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📋 GUVI Format Request</h3>
+                            <button class="btn btn-sm" onclick="copyRequest()">Copy JSON</button>
+                        </div>
+                        <div class="card-body">
+                            <pre id="requestPreview" class="code-block">{
+  "sessionId": "test-session-001",
+  "message": {
+    "sender": "scammer",
+    "text": "Your message here...",
+    "timestamp": 1738756800000
+  },
+  "conversationHistory": [],
+  "metadata": {
+    "channel": "SMS",
+    "language": "English",
+    "locale": "IN"
+  }
+}</pre>
+                        </div>
+                    </div>
+                    
+                    <!-- Response -->
+                    <div class="card full-width">
+                        <div class="card-header">
+                            <h3>📬 API Response</h3>
+                            <div class="response-meta" id="responseMeta">
+                                <span class="response-time"></span>
+                                <span class="response-status"></span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="response-tabs">
+                                <button class="resp-tab active" data-view="formatted">Formatted</button>
+                                <button class="resp-tab" data-view="raw">Raw JSON</button>
+                                <button class="resp-tab" data-view="validation">Validation</button>
+                            </div>
+                            <div class="response-content" id="singleResponse">
+                                <div class="empty-state">
+                                    <span class="empty-icon">📭</span>
+                                    <p>Send a request to see the response</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Tab: Multi-Turn Test -->
+            <section class="tab-content" id="tab-multi">
+                <div class="page-header">
+                    <h2>💬 Multi-Turn Conversation Test</h2>
+                    <p>Test multi-turn conversations with conversationHistory</p>
+                </div>
+                
+                <div class="multi-layout">
+                    <!-- Conversation Panel -->
+                    <div class="card conversation-card">
+                        <div class="card-header">
+                            <h3>🗨️ Conversation</h3>
+                            <div class="header-actions">
+                                <span id="turnCounter">Turn: 0</span>
+                                <button class="btn btn-sm btn-danger" onclick="resetConversation()">Reset</button>
+                            </div>
+                        </div>
+                        <div class="card-body conversation-body" id="conversationContainer">
+                            <div class="empty-state">
+                                <span class="empty-icon">💬</span>
+                                <p>Type as <strong>Scammer</strong> → Your AI responds as <strong>Victim</strong></p>
+                                <p style="font-size: 0.8rem; color: var(--text-muted);">This simulates how GUVI will test your honeypot</p>
+                            </div>
+                        </div>
+                        <div class="card-footer conversation-footer">
+                            <div class="input-row">
+                                <span class="sender-label">🦹 Scammer:</span>
+                                <input type="text" id="multiMessageInput" placeholder="Type scammer message... (AI will respond as victim)" onkeydown="if(event.key==='Enter') sendMultiMessage()">
+                                <button class="btn btn-primary" onclick="sendMultiMessage()">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Session Info -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📊 Session State</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label>Session ID</label>
+                                    <span id="multiSessionId">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Scam Detected</label>
+                                    <span id="multiScamDetected">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Confidence</label>
+                                    <span id="multiConfidence">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Turn Count</label>
+                                    <span id="multiTurnCount">0</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Strategy</label>
+                                    <span id="multiStrategy">-</span>
+                                </div>
+                                <div class="info-item">
+                                    <label>Persona</label>
+                                    <span id="multiPersona">-</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Extraction Confidence & Callback Status -->
+                            <div class="section-divider"></div>
+                            <h4>🎯 Extraction Progress</h4>
+                            <div class="extraction-progress">
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar-fill" id="extractionProgressBar" style="width: 0%"></div>
+                                    <span class="progress-label" id="extractionProgressLabel">0%</span>
+                                </div>
+                                <div class="progress-details">
+                                    <span class="detail-item" id="hasUpi">❌ UPI</span>
+                                    <span class="detail-item" id="hasBank">❌ Bank</span>
+                                    <span class="detail-item" id="hasPhone">❌ Phone</span>
+                                    <span class="detail-item" id="hasIfsc">❌ IFSC</span>
+                                </div>
+                            </div>
+                            
+                            <div class="callback-status-box" id="callbackStatusBox">
+                                <div class="callback-status-header">
+                                    <span class="callback-icon" id="callbackIcon">⏳</span>
+                                    <span class="callback-text" id="callbackStatusText">Waiting for extraction...</span>
+                                </div>
+                                <div class="callback-details" id="callbackDetails">
+                                    Callback triggers when confidence ≥ 85% or turn 20
+                                </div>
+                            </div>
+                            
+                            <div class="section-divider"></div>
+                            <h4>📦 Extracted Intelligence</h4>
+                            <div class="intel-list" id="multiIntelList">
+                                <div class="empty-state small">No intelligence extracted yet</div>
+                            </div>
+                            
+                            <div class="section-divider"></div>
+                            <h4>🔑 Agent Notes</h4>
+                            <div class="agent-notes" id="multiAgentNotes">-</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Raw History -->
+                    <div class="card full-width">
+                        <div class="card-header">
+                            <h3>📋 conversationHistory (sent to API)</h3>
+                            <button class="btn btn-sm" onclick="copyConversationHistory()">Copy</button>
+                        </div>
+                        <div class="card-body">
+                            <pre id="conversationHistoryPreview" class="code-block">[]</pre>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Tab: Callback Test -->
+            <section class="tab-content" id="tab-callback">
+                <div class="page-header">
+                    <h2>📤 GUVI Callback Test</h2>
+                    <p>Test the mandatory final result callback format</p>
+                </div>
+                
+                <div class="content-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📝 Callback Payload Builder</h3>
+                            <button class="btn btn-sm" onclick="generateCallbackPayload()">Generate from Session</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label>Session ID</label>
+                                <input type="text" id="callbackSessionId" value="test-session-001">
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Scam Detected</label>
+                                    <select id="callbackScamDetected">
+                                        <option value="true">true</option>
+                                        <option value="false">false</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Total Messages</label>
+                                    <input type="number" id="callbackTotalMessages" value="18" min="1">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Bank Accounts (comma-separated)</label>
+                                <input type="text" id="callbackBankAccounts" placeholder="1234567890123, 9876543210987">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>UPI IDs (comma-separated)</label>
+                                <input type="text" id="callbackUpiIds" placeholder="scammer@paytm, fraud@ybl">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Phishing Links (comma-separated)</label>
+                                <input type="text" id="callbackPhishingLinks" placeholder="http://malicious.example">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Phone Numbers (comma-separated)</label>
+                                <input type="text" id="callbackPhoneNumbers" placeholder="+919876543210">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Suspicious Keywords (comma-separated)</label>
+                                <input type="text" id="callbackKeywords" value="urgent, verify now, account blocked">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Agent Notes</label>
+                                <textarea id="callbackAgentNotes" rows="2">Scammer used urgency tactics and payment redirection</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📋 GUVI Callback Format</h3>
+                            <button class="btn btn-sm" onclick="copyCallbackPayload()">Copy JSON</button>
+                        </div>
+                        <div class="card-body">
+                            <pre id="callbackPreview" class="code-block">{
+  "sessionId": "test-session-001",
+  "scamDetected": true,
+  "totalMessagesExchanged": 18,
+  "extractedIntelligence": {
+    "bankAccounts": [],
+    "upiIds": [],
+    "phishingLinks": [],
+    "phoneNumbers": [],
+    "suspiciousKeywords": ["urgent", "verify now", "account blocked"]
+  },
+  "agentNotes": "Scammer used urgency tactics..."
+}</pre>
+                        </div>
+                        <div class="card-footer">
+                            <div class="callback-endpoint">
+                                <label>Endpoint:</label>
+                                <code>POST https://hackathon.guvi.in/api/updateHoneyPotFinalResult</code>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card full-width">
+                        <div class="card-header">
+                            <h3>⚠️ Callback Rules</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="rules-grid">
+                                <div class="rule-card">
+                                    <span class="rule-icon">🔑</span>
+                                    <h4>When to Send</h4>
+                                    <ul>
+                                        <li>Scam intent is confirmed (scamDetected = true)</li>
+                                        <li>AI Agent has completed engagement</li>
+                                        <li>Intelligence extraction is finished</li>
+                                    </ul>
+                                </div>
+                                <div class="rule-card">
+                                    <span class="rule-icon">⚡</span>
+                                    <h4>Trigger Conditions</h4>
+                                    <ul>
+                                        <li>Max turns (20) reached</li>
+                                        <li>High extraction confidence (≥85%)</li>
+                                        <li>Session explicitly terminated</li>
+                                    </ul>
+                                </div>
+                                <div class="rule-card important">
+                                    <span class="rule-icon">🚨</span>
+                                    <h4>MANDATORY</h4>
+                                    <ul>
+                                        <li>This callback is required for scoring</li>
+                                        <li>Without it, solution cannot be evaluated</li>
+                                        <li>Platform measures engagement depth</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Tab: Compliance Checklist -->
+            <section class="tab-content" id="tab-checklist">
+                <div class="page-header">
+                    <h2>✅ GUVI Compliance Checklist</h2>
+                    <p>Verify your implementation meets all GUVI requirements</p>
+                </div>
+                
+                <div class="checklist-grid">
+                    <!-- API Requirements -->
+                    <div class="checklist-section">
+                        <h3>🔌 API Requirements</h3>
+                        <div class="check-item" data-check="api-key">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>x-api-key Authentication</h4>
+                                <p>API accepts and validates x-api-key header</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testApiKey()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="guvi-input">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>GUVI Input Format</h4>
+                                <p>Accepts sessionId, message object, conversationHistory, metadata</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testGuviInput()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="guvi-output">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>GUVI Output Format</h4>
+                                <p>Returns status and reply fields</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testGuviOutput()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="response-time">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Response Time &lt; 2s</h4>
+                                <p>API response time within acceptable limit</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testResponseTime()">Test</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Detection Requirements -->
+                    <div class="checklist-section">
+                        <h3>🎯 Detection Requirements</h3>
+                        <div class="check-item" data-check="scam-detect">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Scam Detection</h4>
+                                <p>Detects scam intent with confidence score</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testScamDetect()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="multi-lang">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Multi-Language Support</h4>
+                                <p>Handles English, Hindi, Hinglish</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testMultiLang()">Test</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Agent Requirements -->
+                    <div class="checklist-section">
+                        <h3>🤖 Agent Requirements</h3>
+                        <div class="check-item" data-check="multi-turn">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Multi-Turn Conversations</h4>
+                                <p>Handles conversation history correctly</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testMultiTurn()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="human-like">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Human-like Responses</h4>
+                                <p>Agent behaves like real human</p>
+                            </div>
+                            <span class="manual-badge">Manual Check</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Intelligence Requirements -->
+                    <div class="checklist-section">
+                        <h3>📊 Intelligence Extraction</h3>
+                        <div class="check-item" data-check="extract-upi">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>UPI ID Extraction</h4>
+                                <p>Extracts UPI IDs like scammer@paytm</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testExtractUpi()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="extract-bank">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Bank Account Extraction</h4>
+                                <p>Extracts bank account numbers</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testExtractBank()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="extract-phone">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Phone Number Extraction</h4>
+                                <p>Extracts phone numbers</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testExtractPhone()">Test</button>
+                        </div>
+                        <div class="check-item" data-check="extract-link">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Phishing Link Detection</h4>
+                                <p>Identifies suspicious URLs</p>
+                            </div>
+                            <button class="btn btn-sm" onclick="testExtractLink()">Test</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Callback Requirements -->
+                    <div class="checklist-section">
+                        <h3>📤 Callback Requirements</h3>
+                        <div class="check-item" data-check="callback-format">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Callback Payload Format</h4>
+                                <p>Uses correct camelCase field names</p>
+                            </div>
+                            <span class="manual-badge">Code Review</span>
+                        </div>
+                        <div class="check-item" data-check="callback-trigger">
+                            <span class="check-icon">⏳</span>
+                            <div class="check-content">
+                                <h4>Callback Trigger Logic</h4>
+                                <p>Sends callback at appropriate times</p>
+                            </div>
+                            <span class="manual-badge">Code Review</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="checklist-footer">
+                    <button class="btn btn-primary btn-lg" onclick="runAllTests()">
+                        🚀 Run All Automated Tests
+                    </button>
+                    <div id="testProgress" class="test-progress hidden">
+                        <div class="progress-bar"><div class="progress-fill"></div></div>
+                        <span class="progress-text">Running tests...</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <script src="/ui/guvi-test.js"></script>
+</body>
+</html>

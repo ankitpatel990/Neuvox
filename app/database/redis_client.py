@@ -31,6 +31,11 @@ T = TypeVar("T")
 # Global Redis client
 redis_client: Optional[redis.Redis] = None
 
+# Track if Redis is known to be unavailable (to skip connection attempts)
+_redis_unavailable: bool = False
+_redis_last_check: float = 0
+_REDIS_RECHECK_INTERVAL = 60  # Only try reconnecting every 60 seconds
+
 # In-memory fallback cache when Redis is unavailable
 _fallback_cache: Dict[str, Dict[str, Any]] = {}
 _fallback_cache_ttl: Dict[str, float] = {}
@@ -61,10 +66,10 @@ def init_redis_client() -> None:
         redis_client = redis.from_url(
             redis_url,
             decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-            retry_on_timeout=True,
-            health_check_interval=30,
+            socket_connect_timeout=1,  # Reduced from 5s for faster fallback
+            socket_timeout=1,          # Reduced from 5s for faster fallback
+            retry_on_timeout=False,    # Don't retry, use fallback cache instead
+            health_check_interval=60,
         )
         # Test connection
         redis_client.ping()
@@ -86,10 +91,26 @@ def get_redis_client() -> redis.Redis:
         ConnectionError: If Redis connection fails
         ValueError: If REDIS_URL is not configured
     """
-    if redis_client is None:
-        init_redis_client()
+    global _redis_unavailable, _redis_last_check
+    
+    # Skip connection attempts if Redis was recently unavailable
+    if _redis_unavailable:
+        if time.time() - _redis_last_check < _REDIS_RECHECK_INTERVAL:
+            raise ConnectionError("Redis unavailable (cached)")
+        # Time to recheck
+        _redis_unavailable = False
     
     if redis_client is None:
+        try:
+            init_redis_client()
+        except Exception:
+            _redis_unavailable = True
+            _redis_last_check = time.time()
+            raise
+    
+    if redis_client is None:
+        _redis_unavailable = True
+        _redis_last_check = time.time()
         raise ConnectionError("Redis client not initialized. Check REDIS_URL configuration.")
     
     return redis_client

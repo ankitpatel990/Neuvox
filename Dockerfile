@@ -41,7 +41,7 @@ ENV ENVIRONMENT=production
 # Sensitive values (GROQ_API_KEY, API_KEY, etc.) should be set as HF Secrets
 ENV DEBUG=false
 ENV LOG_LEVEL=INFO
-ENV GROQ_MODEL=llama-3.3-70b-versatile
+ENV GROQ_MODEL=llama-3.1-8b-instant
 ENV GROQ_MAX_TOKENS=500
 ENV GROQ_TEMPERATURE=0.7
 ENV CHROMADB_PATH=/app/chroma_data
