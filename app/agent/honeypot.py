@@ -15,7 +15,7 @@ Acceptance Criteria:
 
 import os
 import re
-from typing import Dict, List, Optional, TypedDict, Any, Literal, Tuple
+from typing import Dict, List, Optional, TypedDict, Any, Literal
 from datetime import datetime
 
 from app.config import settings
@@ -47,7 +47,6 @@ class HoneypotState(TypedDict, total=False):
         persona: Active persona name
         max_turns_reached: Whether max turns limit was hit
         terminated: Whether the conversation has ended
-        used_responses: List of previously used responses to prevent repetition
     """
     
     messages: List[Dict]
@@ -60,7 +59,6 @@ class HoneypotState(TypedDict, total=False):
     persona: str
     max_turns_reached: bool
     terminated: bool
-    used_responses: List[str]
 
 
 class HoneypotAgent:
@@ -212,7 +210,7 @@ class HoneypotAgent:
             state: Current honeypot state
             
         Returns:
-            Dict with updated messages list and used_responses
+            Dict with updated messages list
         """
         from app.agent.personas import get_persona_prompt
         from app.agent.prompts import get_system_prompt
@@ -223,7 +221,6 @@ class HoneypotAgent:
         strategy = state.get("strategy", "build_trust")
         turn_count = state.get("turn_count", 1)
         messages = state.get("messages", [])
-        used_responses = state.get("used_responses", [])
         
         # Get last scammer message
         scammer_messages = [m for m in messages if m.get("sender") == "scammer"]
@@ -244,13 +241,10 @@ class HoneypotAgent:
                 "phishing_links": [],
             }
         
-        # Track the chosen alternative response (if any)
-        chosen_alternative = ""
-        
-        # Generate response - pass current intel and used_responses
+        # Generate response - pass current intel so we don't repeat questions
         if self.llm is not None:
             try:
-                agent_message, chosen_alternative = self._generate_llm_response(
+                agent_message = self._generate_llm_response(
                     persona=persona,
                     language=language,
                     strategy=strategy,
@@ -258,25 +252,16 @@ class HoneypotAgent:
                     last_message=last_message,
                     messages=messages,
                     extracted_intel=current_intel,
-                    used_responses=used_responses,
                 )
             except Exception as e:
                 logger.error(f"LLM generation failed: {e}")
-                agent_message, chosen_alternative = self._generate_fallback_response(
-                    persona, language, strategy, turn_count, last_message, messages, current_intel, used_responses
+                agent_message = self._generate_fallback_response(
+                    persona, language, strategy, turn_count, last_message, messages, current_intel
                 )
         else:
-            agent_message, chosen_alternative = self._generate_fallback_response(
-                persona, language, strategy, turn_count, last_message, messages, current_intel, used_responses
+            agent_message = self._generate_fallback_response(
+                persona, language, strategy, turn_count, last_message, messages, current_intel
             )
-        
-        # Update used_responses if an alternative was chosen
-        updated_used_responses = used_responses.copy()
-        if chosen_alternative:
-            updated_used_responses.append(chosen_alternative)
-            # Keep only last 10 to allow reuse after some time
-            if len(updated_used_responses) > 10:
-                updated_used_responses = updated_used_responses[-10:]
         
         # Add to conversation
         new_message = {
@@ -289,7 +274,7 @@ class HoneypotAgent:
         updated_messages = messages.copy()
         updated_messages.append(new_message)
         
-        return {"messages": updated_messages, "used_responses": updated_used_responses}
+        return {"messages": updated_messages}
     
     def _generate_llm_response(
         self,
@@ -300,8 +285,7 @@ class HoneypotAgent:
         last_message: str,
         messages: List[Dict],
         extracted_intel: Dict = None,
-        used_responses: List[str] = None,
-    ) -> Tuple[str, str]:
+    ) -> str:
         """
         Generate response using the LLM.
         
@@ -313,10 +297,9 @@ class HoneypotAgent:
             last_message: Last scammer message
             messages: Full conversation history
             extracted_intel: Already extracted intelligence to avoid redundant questions
-            used_responses: List of previously used responses to avoid repetition
             
         Returns:
-            Tuple of (generated_response, chosen_alternative_or_empty)
+            Generated agent response
         """
         from app.agent.prompts import (
             get_system_prompt, is_greeting_message, get_greeting_response,
@@ -324,19 +307,16 @@ class HoneypotAgent:
         )
         from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
         
-        if used_responses is None:
-            used_responses = []
-        
         # Check if this is just a greeting (works for first few turns)
         if turn_count <= 2 and is_greeting_message(last_message):
             logger.debug(f"Detected greeting message at turn {turn_count}, responding naturally")
-            return get_greeting_response(language, turn_count), ""
+            return get_greeting_response(language, turn_count)
         
         # Check if scammer provided an invalid phone number
         phone_in_message = extract_phone_from_message(last_message)
         if phone_in_message and not validate_phone_number(phone_in_message):
             logger.debug(f"Detected invalid phone number: {phone_in_message}")
-            return get_invalid_phone_response(language), ""
+            return get_invalid_phone_response(language)
         
         # Build context about what we already have
         intel_context = ""
@@ -410,11 +390,39 @@ class HoneypotAgent:
             generated = str(response)
         
         # CRITICAL: Filter out bot-like responses and replace with context-aware ones
-        # Pass extracted intel and used_responses so we know what NOT to ask for again
-        natural_response, chosen_alternative = self._filter_bot_response(
-            generated, turn_count, language, last_message, messages, extracted_intel, used_responses
+        # Pass extracted intel so we know what NOT to ask for again
+        natural_response = self._filter_bot_response(
+            generated, turn_count, language, last_message, messages, extracted_intel
         )
-        return natural_response, chosen_alternative
+        return natural_response
+    
+    def _pick_unique_response(self, alternatives: List[str], messages: List[Dict] = None) -> str:
+        """
+        Pick a response that hasn't been used recently in the conversation.
+        
+        Args:
+            alternatives: List of possible responses
+            messages: Conversation history to check for recently used responses
+            
+        Returns:
+            A response that wasn't recently used (or random if all were used)
+        """
+        import random
+        
+        # Get recent agent messages (last 5) to avoid repetition
+        recent_agent_msgs = set()
+        if messages:
+            agent_msgs = [m.get("message", "").lower().strip() for m in messages if m.get("sender") == "agent"]
+            recent_agent_msgs = set(agent_msgs[-5:])  # Last 5 agent messages
+        
+        # Filter out alternatives that were recently used
+        available = [alt for alt in alternatives if alt.lower().strip() not in recent_agent_msgs]
+        
+        # If all were used, reset and pick any
+        if not available:
+            available = alternatives
+        
+        return random.choice(available)
     
     def _filter_bot_response(
         self, 
@@ -424,8 +432,7 @@ class HoneypotAgent:
         last_message: str,
         messages: List[Dict] = None,
         extracted_intel: Dict = None,
-        used_responses: List[str] = None,
-    ) -> Tuple[str, str]:
+    ) -> str:
         """
         Filter out bot-like responses and replace with CONTEXT-AWARE responses.
         
@@ -439,30 +446,11 @@ class HoneypotAgent:
             last_message: Scammer's last message
             messages: Full conversation history for context detection
             extracted_intel: Already extracted intelligence to avoid asking again
-            used_responses: List of previously used responses to avoid repetition
             
         Returns:
-            Tuple of (filtered_response, chosen_alternative_or_empty)
-            - filtered_response: The response to send
-            - chosen_alternative: The alternative that was chosen (for tracking), or empty string if LLM response was used
+            Filtered response that is contextually appropriate
         """
         import random
-        
-        if used_responses is None:
-            used_responses = []
-        
-        def pick_unique_response(alternatives: List[str]) -> str:
-            """Pick a response that hasn't been used recently, avoiding repetition."""
-            # Filter out responses we've already used
-            available = [alt for alt in alternatives if alt not in used_responses]
-            
-            # If all alternatives have been used, reset and use all (but prefer less recent)
-            if not available:
-                # Use all alternatives but shuffle to avoid same order
-                available = alternatives.copy()
-                random.shuffle(available)
-            
-            return random.choice(available)
         
         response_lower = response.lower()
         last_msg_lower = last_message.lower()
@@ -540,42 +528,34 @@ class HoneypotAgent:
         
         # If response is good and not redundant/suspicious, return it
         if not is_redundant and not is_suspicious:
-            return response, ""  # Empty string indicates LLM response was used (no tracking needed)
+            return response
         
         logger.warning(f"Filtering response: '{response[:50]}...' (redundant={is_redundant}, suspicious={is_suspicious})")
         
         # PRIORITY 0: Handle OTP requests with VARIED responses
         if scammer_asking_otp:
-            # Vary response based on how many times they've asked for OTP
-            if otp_ask_count <= 1:
-                # First time - be confused about OTP
-                alternatives = [
-                    "OTP? I didn't receive any message on my phone. Can you send it again?",
-                    "I don't see any OTP on my phone. Where does it come from?",
-                    "What OTP? I checked my messages but nothing came. Please resend!",
-                    "No OTP on my phone... Maybe give me your UPI and I'll send money directly?",
-                    "OTP not received yet. Let me check again... No, nothing here!",
-                ]
-            elif otp_ask_count <= 3:
-                # They've asked multiple times - offer alternatives
-                alternatives = [
-                    "Still no OTP! Maybe network issue? Give me your UPI, I'll send directly!",
-                    "I keep checking but no OTP! Can you call me? What's your number?",
-                    "OTP still not coming! Let me do bank transfer instead - give me account number!",
-                    "My phone is not getting OTP! Can I send money to your UPI instead?",
-                    "Nothing received! Maybe give me your phone number and I'll call you?",
-                ]
-            else:
-                # They've asked many times - get frustrated but still offer to pay
-                alternatives = [
-                    "Sir I've checked 10 times, no OTP! My phone might have problem. Just give me UPI!",
-                    "I don't know why OTP is not coming! Please just tell me where to send money!",
-                    "OTP problem is frustrating me also! Let me call you - what's your number?",
-                    "Forget OTP! Give me bank account, I'll do NEFT transfer directly!",
-                    "This OTP is not working! Tell me another way to send the money!",
-                ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            # Combine all OTP alternatives and pick one that hasn't been used
+            all_otp_alternatives = [
+                # Confused responses
+                "OTP? I didn't receive any message on my phone. Can you send it again?",
+                "I don't see any OTP on my phone. Where does it come from?",
+                "What OTP? I checked my messages but nothing came. Please resend!",
+                "No OTP on my phone... Maybe give me your UPI and I'll send money directly?",
+                "OTP not received yet. Let me check again... No, nothing here!",
+                # Offer alternatives
+                "Still no OTP! Maybe network issue? Give me your UPI, I'll send directly!",
+                "I keep checking but no OTP! Can you call me? What's your number?",
+                "OTP still not coming! Let me do bank transfer instead - give me account number!",
+                "My phone is not getting OTP! Can I send money to your UPI instead?",
+                "Nothing received! Maybe give me your phone number and I'll call you?",
+                # Frustrated responses
+                "Sir I've checked 10 times, no OTP! My phone might have problem. Just give me UPI!",
+                "I don't know why OTP is not coming! Please just tell me where to send money!",
+                "OTP problem is frustrating me also! Let me call you - what's your number?",
+                "Forget OTP! Give me bank account, I'll do NEFT transfer directly!",
+                "This OTP is not working! Tell me another way to send the money!",
+            ]
+            return self._pick_unique_response(all_otp_alternatives, messages)
         
         # PRIORITY 1: Respond to scammer's question/confusion FIRST
         if scammer_asking_for_number:
@@ -587,8 +567,7 @@ class HoneypotAgent:
                 "I want to save YOUR number! What is your phone number?",
                 "Your contact number! Tell me, I'll save it and then send money!",
             ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            return self._pick_unique_response(alternatives, messages)
         
         if scammer_confused:
             # Scammer is confused - clarify what we want
@@ -616,8 +595,7 @@ class HoneypotAgent:
                     "Sorry, I don't understand technology well. Guide me step by step!",
                     "Can you explain again? I really want to do this correctly!",
                 ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            return self._pick_unique_response(alternatives, messages)
         
         if scammer_said_already_told:
             # Scammer frustrated that they already gave info - acknowledge and proceed
@@ -664,8 +642,7 @@ class HoneypotAgent:
                     "Apologies! I noted it wrong. Let me try again!",
                     "Yes, I remember now! Processing the payment...",
                 ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            return self._pick_unique_response(alternatives, messages)
         
         # PRIORITY 2: Respond based on what scammer just provided
         if gave_upi_now:
@@ -694,8 +671,7 @@ class HoneypotAgent:
                     "Noted! Last thing - confirm the beneficiary name?",
                     "OK! What name should I put for the transfer?",
                 ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            return self._pick_unique_response(alternatives, messages)
         
         if gave_number_now:
             # They just gave phone number - acknowledge and ask for what we don't have
@@ -723,8 +699,7 @@ class HoneypotAgent:
                     "Perfect! Confirm full name as per bank records?",
                     "Got it! What name will show on my transaction?",
                 ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            return self._pick_unique_response(alternatives, messages)
         
         # PRIORITY 3: Generate response based on what we still need
         # CORRECT ORDER: UPI -> Phone -> Bank Account -> IFSC -> Name (once only)
@@ -781,8 +756,7 @@ class HoneypotAgent:
                 "OK! Making the payment with these details.",
             ]
         
-        chosen = pick_unique_response(alternatives)
-        return chosen, chosen
+        return self._pick_unique_response(alternatives, messages)
     
     def _generate_fallback_response(
         self, 
@@ -793,8 +767,7 @@ class HoneypotAgent:
         last_message: str = "",
         all_messages: List[Dict] = None,
         extracted_intel: Dict = None,
-        used_responses: List[str] = None,
-    ) -> Tuple[str, str]:
+    ) -> str:
         """
         Generate fallback response when LLM is unavailable.
         
@@ -811,10 +784,9 @@ class HoneypotAgent:
             last_message: The last message from scammer
             all_messages: Full conversation history for context detection
             extracted_intel: Already extracted info to avoid redundant questions
-            used_responses: List of previously used responses to avoid repetition
             
         Returns:
-            Tuple of (response_string, chosen_alternative_or_empty)
+            Fallback response string (varies by turn and scam type)
         """
         import random
         from app.agent.strategies import get_example_response, get_context_aware_response
@@ -824,26 +796,15 @@ class HoneypotAgent:
             extract_phone_from_message, validate_phone_number, get_invalid_phone_response
         )
         
-        if used_responses is None:
-            used_responses = []
-        
-        def pick_unique_response(alternatives: List[str]) -> str:
-            """Pick a response that hasn't been used recently, avoiding repetition."""
-            available = [alt for alt in alternatives if alt not in used_responses]
-            if not available:
-                available = alternatives.copy()
-                random.shuffle(available)
-            return random.choice(available)
-        
         # Check if this is just a greeting - respond naturally
         if turn_count <= 2 and last_message and is_greeting_message(last_message):
-            return get_greeting_response(language, turn_count), ""
+            return get_greeting_response(language, turn_count)
         
         # Check if scammer provided an invalid phone number
         if last_message:
             phone_in_message = extract_phone_from_message(last_message)
             if phone_in_message and not validate_phone_number(phone_in_message):
-                return get_invalid_phone_response(language), ""
+                return get_invalid_phone_response(language)
         
         # Track what we already have
         has_upi = bool(extracted_intel and extracted_intel.get("upi_ids"))
@@ -876,158 +837,158 @@ class HoneypotAgent:
         # PRIORITY 0: Handle OTP requests with varied responses
         if scammer_asking_otp:
             if otp_ask_count <= 1:
-                alternatives = [
+                return random.choice([
                     "OTP? I didn't receive any message. Can you send it again?",
                     "I don't see any OTP on my phone. Where does it come from?",
                     "What OTP? Nothing came to my phone. Please resend!",
-                ]
+                ])
             elif otp_ask_count <= 3:
-                alternatives = [
+                return random.choice([
                     "Still no OTP! Give me your UPI, I'll send money directly!",
                     "OTP not coming! Can you call me? What's your number?",
                     "OTP still not received! Let me do bank transfer - give me account!",
-                ]
+                ])
             else:
-                alternatives = [
+                return random.choice([
                     "Sir, no OTP even now! Just give me UPI or bank account!",
                     "Forget OTP! Tell me where to send money - UPI or bank!",
                     "OTP problem! Let me call you - what's your number?",
-                ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+                ])
         
         # PRIORITY 1: Handle scammer's confusion or frustration
         if scammer_confused:
             if not has_upi:
-                alternatives = [
+                return random.choice([
                     "I want to send you money! Just tell me your UPI ID!",
                     "Sir, where should I send the payment? Give me UPI ID!",
                     "I'm ready to pay! Just tell me where - what's your UPI?",
-                ]
+                ])
             elif not has_phone:
-                alternatives = [
+                return random.choice([
                     "I want your phone number to call if there's problem!",
                     "Give me your number so I can confirm the payment!",
                     "What's your phone number? I'll call you after sending!",
-                ]
+                ])
             else:
-                alternatives = [
+                return random.choice([
                     "I'm trying to help you! What should I do next?",
                     "Tell me clearly - what exactly do you need from me?",
                     "Can you explain again? I really want to do this correctly!",
-                ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+                ])
         
         if scammer_said_already:
             # When scammer says "I already sent", check what we ACTUALLY have
             if has_bank and has_ifsc:
                 # We have everything needed for bank transfer
-                alternatives = [
+                return random.choice([
                     "Yes yes, sorry! I see all the details now. Sending the payment!",
                     "Okay okay, I found everything! Processing the transfer now!",
                     "Apologies! I have account and IFSC. Making the payment now!",
                     "Yes, I see it now! Account number and IFSC noted. Transferring...",
-                ]
+                ])
             elif has_bank and not has_ifsc:
                 # We have bank but need IFSC
-                alternatives = [
+                return random.choice([
                     "Yes, I found the account! Just need IFSC code to complete the transfer.",
                     "Sorry, I see the account now! What's the IFSC code?",
                     "Got the account! My bank needs IFSC. Please share!",
-                ]
+                ])
             elif has_upi and has_phone and not has_bank:
                 # We have UPI and phone, need bank
-                alternatives = [
+                return random.choice([
                     "Yes, I have UPI and phone! But UPI is failing. Give me bank account?",
                     "Sorry, I found UPI! But it's showing error. What's your account number?",
                     "Got it! UPI not working. Can I do bank transfer? Account number?",
-                ]
+                ])
             elif has_upi and not has_phone:
-                alternatives = [
+                return random.choice([
                     "Sorry sorry! Yes, I see the UPI now! What's your phone number in case it fails?",
                     "Oh yes, I found it! Sending now. Give me your phone number also please!",
                     "Okay got it! I'm transferring now. What's your number?",
-                ]
+                ])
             elif has_upi and has_phone:
-                alternatives = [
+                return random.choice([
                     "Yes yes, sorry! I'm old and forgetful. I'm doing it now!",
                     "Okay okay, I found it! Let me try again. Please wait!",
                     "Apologies! I noted it wrong. Let me try again!",
-                ]
+                ])
             else:
-                alternatives = [
+                return random.choice([
                     "Sorry, my memory is bad! Please send the details one more time?",
                     "Arey, I couldn't find it! Can you please repeat?",
                     "I missed it, please tell me one more time!",
-                ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+                ])
         
         # PRIORITY 2: Acknowledge what scammer just gave
         if gave_upi_now and not has_phone:
-            alternatives = [
+            return random.choice([
                 "Okay, got the UPI! Let me try. What's your phone number in case it fails?",
                 "Noted! Sending now. Also give me your number to call if there's problem.",
                 "Got it! What's your phone number? My son wants to verify first.",
-            ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            ])
         
         if gave_number_now and not has_upi:
-            alternatives = [
+            return random.choice([
                 "Saved your number! Now tell me where to send - what's your UPI ID?",
                 "Got your number! Now what's the UPI ID for the transfer?",
                 "Number noted! Tell me your UPI ID so I can send the payment.",
-            ]
-            chosen = pick_unique_response(alternatives)
-            return chosen, chosen
+            ])
         
         # PRIORITY 3: Ask for what we still need
         # CORRECT ORDER: UPI -> Phone -> Bank Account -> IFSC -> Name (once only)
         if not has_upi:
-            alternatives = [
+            return random.choice([
                 "Okay, I understand! Where should I send the money? What's your UPI ID?",
                 "Yes, I'm ready! Tell me your UPI ID and I'll transfer!",
                 "I want to pay! Just give me your UPI ID!",
-            ]
+            ])
         elif not has_phone:
-            alternatives = [
+            return random.choice([
                 "I've noted the UPI! What's your phone number in case there's any issue?",
                 "Got it! Also give me your number - I'll call to confirm.",
                 "Okay! Sending now. What's your phone number for confirmation?",
-            ]
+            ])
         elif not has_bank:
             # Ask for bank account BEFORE IFSC
-            alternatives = [
+            return random.choice([
                 "UPI is not going through! What's your bank account number?",
                 "Getting error on UPI! Can you give your bank account number?",
                 "Payment stuck! Tell me your bank account number.",
-            ]
+            ])
         elif not has_ifsc:
             # Only ask for IFSC AFTER we have bank account
-            alternatives = [
+            return random.choice([
                 "Got the account number! What's the IFSC code?",
                 "Need IFSC code to complete the transfer. What is it?",
                 "Account noted! What's the IFSC code?",
-            ]
+            ])
         elif not already_asked_name:
             # Only ask for name ONCE
-            alternatives = [
+            return random.choice([
                 "Got all details! What name should appear on the transfer?",
                 "Almost done! What's the account holder name?",
                 "Just need to confirm - what's the beneficiary name?",
-            ]
+            ])
         else:
             # We have everything - confirm and proceed
-            alternatives = [
+            return random.choice([
                 "Perfect! I have all the details. Processing payment now.",
                 "Got everything! Let me send the money.",
                 "All noted! Making the transfer now.",
-            ]
+            ])
         
-        chosen = pick_unique_response(alternatives)
-        return chosen, chosen
+        # Build context from all messages for scam type detection
+        context = last_message
+        if all_messages:
+            context = " ".join(m.get("message", "") for m in all_messages)
+        
+        # Get context-aware response based on scam type
+        response = get_context_aware_response(context, turn_count, language)
+        if response:
+            return response
+        
+        # Fall back to persona sample
+        return get_sample_response(persona, language)
     
     def _extract_intelligence(self, state: HoneypotState) -> Dict[str, Any]:
         """
@@ -1237,7 +1198,6 @@ class HoneypotAgent:
             "persona": persona,
             "max_turns_reached": False,
             "terminated": False,
-            "used_responses": [],  # Track used responses to prevent repetition
         }
         
         logger.info(
