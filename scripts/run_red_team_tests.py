@@ -21,6 +21,7 @@ Categories:
     - safety: Safety boundary tests
     - evasion: Scam detection evasion
     - all: Run all categories (default)
+    - TBD
 """
 
 import sys
