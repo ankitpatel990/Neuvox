@@ -23,11 +23,23 @@ VALID_UPI_PROVIDERS: Set[str] = {
     "paytm", "ybl", "okaxis", "okhdfcbank", "oksbi", "okicici",
     "upi", "apl", "axisbank", "icici", "sbi", "hdfcbank",
     "ibl", "kotak", "pnb", "boi", "cbi", "canara", "bob",
-    "unionbank", "idbi", "indianbank", "pnb", "iob", "allahabad",
+    "unionbank", "idbi", "indianbank", "iob", "allahabad",
     "axl", "fbl", "hdfc", "hsbc", "indus", "rbl", "sc", "yesbank",
     "airtel", "jio", "postbank", "dbs", "federal", "bandhan",
     "pingpay", "waaxis", "wahdfcbank", "wasbi", "waicici",
     "gpay", "phonepe", "payzapp", "amazonpay", "freecharge",
+    # Additional providers
+    "abfspay", "aubank", "csbpay", "dcb", "equitas", "finobank",
+    "idfcbank", "jupiteraxis", "kmbl", "kvb", "lime", "nsdl",
+    "obc", "rajgovhdfcbank", "uco", "utbi", "vijb",
+}
+
+# Email domain suffixes to exclude from UPI detection (false positives)
+EMAIL_DOMAIN_EXCLUSIONS: Set[str] = {
+    "gmail", "yahoo", "outlook", "hotmail", "protonmail", "proton",
+    "mail", "email", "live", "msn", "aol", "icloud", "rediff",
+    "rediffmail", "zoho", "yandex", "tutanota", "fastmail",
+    "pm", "hey", "duck",
 }
 
 # Known phishing/suspicious domains patterns
@@ -84,18 +96,22 @@ class IntelligenceExtractor:
         self.patterns: Dict[str, str] = {
             # UPI IDs: alphanumeric with dots, underscores, hyphens @ provider
             "upi_ids": r"\b[a-zA-Z0-9][a-zA-Z0-9._-]*@[a-zA-Z]{2,}\b",
-            
+
             # Bank accounts: 9-18 digits (not starting with 0 typically)
             "bank_accounts": r"\b[1-9]\d{8,17}\b",
-            
-            # IFSC codes: 4 letters + 0 + 6 alphanumeric
-            "ifsc_codes": r"\b[A-Z]{4}0[A-Z0-9]{6}\b",
-            
+
+            # IFSC codes: 4 letters + 0 + 6 alphanumeric (case insensitive match)
+            "ifsc_codes": r"\b[A-Za-z]{4}0[A-Za-z0-9]{6}\b",
+
             # Phone numbers: Indian mobile format with optional +91
-            "phone_numbers": r"(?:\+91[\s\-]?)?(?:0)?[6-9]\d{9}\b",
-            
-            # Phishing links: HTTP/HTTPS URLs
-            "phishing_links": r"https?://[^\s<>\"\'{}|\\^`\[\]]+",
+            # Word boundary at start prevents matching inside longer numbers
+            "phone_numbers": r"(?<!\d)(?:\+91[\s\-]?)?(?:0)?[6-9]\d{9}(?!\d)",
+
+            # Phishing links: HTTP/HTTPS URLs and common short-URL domains
+            "phishing_links": (
+                r"https?://[^\s<>\"\'{}|\\^`\[\]]+"
+                r"|(?:bit\.ly|tinyurl\.com|goo\.gl|t\.co|is\.gd)/[^\s<>\"\'{}|\\^`\[\]]+"
+            ),
         }
         
         # Devanagari to ASCII digit mapping
@@ -164,17 +180,61 @@ class IntelligenceExtractor:
         # Use spaCy NER for additional entities if available
         if self.nlp is not None:
             self._extract_with_spacy(text, intel)
-        
+
+        # Cross-entity deduplication: remove phone numbers that are
+        # substrings of extracted bank account numbers (same digit run).
+        intel["phone_numbers"] = self._deduplicate_phones_vs_accounts(
+            intel["phone_numbers"], intel["bank_accounts"]
+        )
+
         # Calculate confidence score
         confidence = self._calculate_confidence(intel)
-        
-        logger.debug(f"Extracted intel: {len(intel['upi_ids'])} UPIs, "
-                     f"{len(intel['bank_accounts'])} accounts, "
-                     f"{len(intel['phone_numbers'])} phones, "
-                     f"confidence={confidence:.2f}")
-        
+
+        logger.debug(
+            f"Extracted intel: {len(intel['upi_ids'])} UPIs, "
+            f"{len(intel['bank_accounts'])} accounts, "
+            f"{len(intel['ifsc_codes'])} IFSCs, "
+            f"{len(intel['phone_numbers'])} phones, "
+            f"{len(intel['phishing_links'])} links, "
+            f"confidence={confidence:.2f}"
+        )
+
         return intel, confidence
     
+    def _deduplicate_phones_vs_accounts(
+        self,
+        phone_numbers: List[str],
+        bank_accounts: List[str],
+    ) -> List[str]:
+        """
+        Remove phone numbers whose raw digits are a substring of a bank account.
+
+        This prevents the same digit sequence from being counted as both
+        a phone number and a bank account.
+
+        Args:
+            phone_numbers: Validated phone numbers (e.g. +919876543210)
+            bank_accounts: Validated bank account numbers
+
+        Returns:
+            Filtered phone numbers list
+        """
+        if not phone_numbers or not bank_accounts:
+            return phone_numbers
+
+        filtered = []
+        for phone in phone_numbers:
+            raw_digits = re.sub(r"[^\d]", "", phone)
+            # Strip leading 91 country code to get 10-digit core
+            if raw_digits.startswith("91") and len(raw_digits) == 12:
+                raw_digits = raw_digits[2:]
+
+            is_substring = any(raw_digits in acct for acct in bank_accounts)
+            if not is_substring:
+                filtered.append(phone)
+
+        return filtered
+
     def _empty_intel(self) -> Dict[str, List[str]]:
         """Return empty intelligence dict."""
         return {
@@ -205,6 +265,9 @@ class IntelligenceExtractor:
         """
         Validate UPI IDs for precision >90% (AC-3.1.1).
         
+        Filters out email-like addresses and ensures provider is a
+        known UPI handle or at least not a known email domain.
+        
         Args:
             upi_ids: List of potential UPI IDs
             
@@ -212,34 +275,40 @@ class IntelligenceExtractor:
             List of validated UPI IDs
         """
         validated = []
-        
+
         for upi in upi_ids:
-            upi_lower = upi.lower()
-            
-            # Extract provider (part after @)
             if "@" not in upi:
                 continue
-            
+
             parts = upi.split("@")
             if len(parts) != 2:
                 continue
-            
+
             user_part, provider = parts
             provider_lower = provider.lower()
-            
+
             # User part must be at least 2 characters
             if len(user_part) < 2:
                 continue
-            
-            # Check if provider is valid UPI provider
+
+            # Reject known email domain suffixes (high false-positive risk)
+            if provider_lower in EMAIL_DOMAIN_EXCLUSIONS:
+                continue
+
+            # Reject common TLD-only providers that are emails, not UPI
+            if provider_lower in {
+                "com", "org", "net", "edu", "gov", "in", "co", "io",
+                "info", "biz", "me", "us", "uk", "de", "fr", "ru",
+            }:
+                continue
+
+            # Check if provider is a known UPI provider (high confidence)
             if provider_lower in VALID_UPI_PROVIDERS:
                 validated.append(upi)
-            # Allow unknown providers if they look like UPI (2-10 chars, alphabetic)
-            elif 2 <= len(provider) <= 10 and provider.isalpha():
-                # Exclude common email domains
-                if provider_lower not in {"com", "org", "net", "edu", "gov", "in", "co", "io"}:
-                    validated.append(upi)
-        
+            # Allow unknown providers if they look UPI-like (2-12 chars, alphabetic)
+            elif 2 <= len(provider) <= 12 and provider.isalpha():
+                validated.append(upi)
+
         return list(set(validated))
     
     def _validate_bank_accounts(self, accounts: List[str]) -> List[str]:
@@ -510,18 +579,31 @@ class IntelligenceExtractor:
     def extract_from_conversation(
         self,
         messages: List[Dict],
+        scammer_only: bool = True,
     ) -> Tuple[Dict[str, List[str]], float]:
         """
         Extract intelligence from a list of conversation messages.
-        
+
+        By default extracts from scammer messages only (higher precision).
+        Agent-generated text can contain hallucinated entities.
+
         Args:
-            messages: List of message dicts with 'message' key
-            
+            messages: List of message dicts with 'message' and 'sender' keys
+            scammer_only: If True, only use scammer messages for extraction
+
         Returns:
             Tuple of (intelligence_dict, confidence_score)
         """
-        full_text = " ".join(msg.get("message", "") for msg in messages)
-        return self.extract(full_text)
+        if scammer_only:
+            text = " ".join(
+                msg.get("message", "")
+                for msg in messages
+                if msg.get("sender") == "scammer"
+            )
+        else:
+            text = " ".join(msg.get("message", "") for msg in messages)
+
+        return self.extract(text)
 
 
 # Singleton extractor instance
@@ -569,15 +651,21 @@ def extract_intelligence(text: str) -> Tuple[Dict[str, List[str]], float]:
     return extractor.extract(text)
 
 
-def extract_from_messages(messages: List[Dict]) -> Tuple[Dict[str, List[str]], float]:
+def extract_from_messages(
+    messages: List[Dict],
+    scammer_only: bool = True,
+) -> Tuple[Dict[str, List[str]], float]:
     """
     Extract intelligence from conversation messages.
-    
+
+    By default extracts from scammer messages only for higher precision.
+
     Args:
-        messages: List of message dicts with 'message' key
-        
+        messages: List of message dicts with 'message' and 'sender' keys
+        scammer_only: If True, only use scammer messages
+
     Returns:
         Tuple of (intelligence_dict, confidence_score)
     """
     extractor = get_extractor()
-    return extractor.extract_from_conversation(messages)
+    return extractor.extract_from_conversation(messages, scammer_only=scammer_only)

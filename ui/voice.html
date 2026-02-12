@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScamShield AI - Voice Honeypot (Phase 2)</title>
+    <link rel="stylesheet" href="/ui/voice.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">&#x1F3A4;</span>
+                <h1>ScamShield AI</h1>
+                <span class="badge phase-2">Voice Honeypot &middot; Phase 2</span>
+            </div>
+            <div class="header-right">
+                <div class="voice-health-status">
+                    <span class="health-dot" id="healthDot"></span>
+                    <span id="healthLabel">Checking...</span>
+                </div>
+                <a href="/ui/index.html" class="btn btn-tertiary btn-small">Text Chat</a>
+            </div>
+        </header>
+
+        <!-- Error Banner -->
+        <div class="error-banner" id="errorBanner"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Left Panel - Voice Conversation -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>&#x1F50A; Voice Conversation</h2>
+                    <div class="session-info">
+                        <input
+                            type="text"
+                            id="sessionIdDisplay"
+                            readonly
+                            placeholder="No active session"
+                            style="background:transparent;border:none;color:var(--text-muted);font-family:var(--font-mono);font-size:0.75rem;width:260px;text-align:right;outline:none;"
+                        >
+                        <button class="btn btn-small btn-secondary" onclick="newSession()">New Session</button>
+                    </div>
+                </div>
+
+                <!-- Conversation Area -->
+                <div class="conversation-container" id="conversationContainer">
+                    <div id="conversationWelcome" class="conversation-welcome">
+                        <div class="welcome-icon">&#x1F3A4;</div>
+                        <h3>Voice Honeypot Testing</h3>
+                        <p>
+                            Tap the microphone to speak. When you stop, the AI will
+                            transcribe your words, detect scam intent, and reply with voice automatically.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Talk Bar (bottom of chat, like a phone call) -->
+                <div class="talk-bar">
+                    <div class="talk-bar-left">
+                        <select id="languageSelect" class="language-select" title="Language hint">
+                            <option value="auto">Auto</option>
+                            <option value="en">EN</option>
+                            <option value="hi">HI</option>
+                        </select>
+                        <button id="btnUploadAudio" class="btn btn-tertiary btn-small" onclick="uploadAudio()" title="Upload audio file">
+                            &#x1F4CE; Upload
+                        </button>
+                        <input
+                            type="file"
+                            id="audioFileInput"
+                            class="file-input-hidden"
+                            accept="audio/*"
+                            onchange="handleFileSelect(event)"
+                        >
+                    </div>
+
+                    <button id="btnTalk" class="talk-button" onclick="toggleRecording()">
+                        <span class="talk-button-icon" id="talkButtonIcon">&#x1F3A4;</span>
+                        <span class="talk-button-label" id="talkButtonLabel">Tap to Talk</span>
+                    </button>
+
+                    <div class="talk-bar-right">
+                        <div class="recording-status" id="recordingStatus">
+                            <span class="status-indicator"></span>
+                            <span class="status-label" id="recordingLabel">Ready</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel - Metadata & Intelligence -->
+            <aside class="panel sidebar-panel">
+
+                <!-- Transcription Metadata -->
+                <div class="sidebar-section">
+                    <h3>&#x1F4DD; Transcription</h3>
+                    <div class="metadata-grid">
+                        <div class="metadata-card full-width">
+                            <span class="metadata-label">Transcribed Text</span>
+                            <span class="metadata-value" id="metaTranscription">-</span>
+                        </div>
+                        <div class="metadata-card">
+                            <span class="metadata-label">Language</span>
+                            <span class="metadata-value highlight" id="metaASRLanguage">-</span>
+                        </div>
+                        <div class="metadata-card">
+                            <span class="metadata-label">Confidence</span>
+                            <span class="metadata-value highlight" id="metaASRConfidence">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Result -->
+                <div class="sidebar-section">
+                    <h3>&#x1F3AF; Detection Result</h3>
+                    <div class="detection-result" id="detectionResult">
+                        <div class="no-data">Send audio to see detection results</div>
+                    </div>
+                </div>
+
+                <!-- Voice Fraud (optional) -->
+                <div class="sidebar-section" id="voiceFraudSection" style="display:none;">
+                    <h3>&#x1F50E; Voice Fraud Analysis</h3>
+                    <div id="voiceFraudResult" class="fraud-result"></div>
+                </div>
+
+                <!-- Extracted Intelligence -->
+                <div class="sidebar-section">
+                    <h3>&#x1F4CA; Extracted Intelligence</h3>
+                    <div class="intel-grid">
+                        <div class="intel-card">
+                            <div class="intel-icon">&#x1F4B3;</div>
+                            <div class="intel-label">UPI IDs</div>
+                            <div class="intel-value" id="intelUPI">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">&#x1F3E6;</div>
+                            <div class="intel-label">Bank Accounts</div>
+                            <div class="intel-value" id="intelBank">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">&#x1F4F1;</div>
+                            <div class="intel-label">Phone Numbers</div>
+                            <div class="intel-value" id="intelPhone">-</div>
+                        </div>
+                        <div class="intel-card">
+                            <div class="intel-icon">&#x1F517;</div>
+                            <div class="intel-label">Phishing Links</div>
+                            <div class="intel-value" id="intelLinks">-</div>
+                        </div>
+                        <div class="intel-card" style="grid-column: 1 / -1;">
+                            <div class="intel-icon">&#x1F4C8;</div>
+                            <div class="intel-label">Extraction Confidence</div>
+                            <div class="intel-value" id="intelConfidence">-</div>
+                        </div>
+                    </div>
+                </div>
+
+            </aside>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div>
+                <span>ScamShield AI v2.0.0 &middot; Phase 2 Voice</span>
+                <span class="separator">|</span>
+                <span>API: <a href="/docs" target="_blank">Swagger Docs</a></span>
+                <span class="separator">|</span>
+                <span><a href="/ui/index.html">Text Dashboard</a></span>
+            </div>
+            <div id="responseTime">-</div>
+        </footer>
+
+    </div>
+
+    <script src="/ui/voice.js"></script>
+</body>
+</html>

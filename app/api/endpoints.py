@@ -82,7 +82,7 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
         # Import required modules
         from app.models.detector import ScamDetector, get_detector
         from app.models.language import detect_language
-        from app.models.extractor import extract_intelligence
+        from app.models.extractor import extract_intelligence, extract_from_messages
         from app.agent.honeypot import HoneypotAgent
         from app.agent.personas import select_persona
         from app.database.redis_client import (
@@ -171,9 +171,12 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
         # Engage the agent
         result = agent.engage(message_text, session_state)
         
-        # Extract intelligence from conversation
-        full_text = " ".join(msg.get("message", "") for msg in result.get("messages", []))
-        intel, extraction_confidence = extract_intelligence(full_text)
+        # Extract intelligence from scammer messages only (higher precision).
+        # Agent-generated text may contain hallucinated entities.
+        messages_list_for_extraction = result.get("messages", [])
+        intel, extraction_confidence = extract_from_messages(
+            messages_list_for_extraction, scammer_only=True
+        )
         
         # Update result with extracted intelligence
         result["extracted_intel"] = intel

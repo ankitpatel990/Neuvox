@@ -1,0 +1,74 @@
+Slides: 9
+
+--- Slide 1 ---
+  [TEXT_BOX (17)] INDIA AI IMPACT BUILDATHON
+
+--- Slide 2 ---
+  [TEXT_BOX (17)] gjhghjgjhg
+  [TEXT_BOX (17)] [Your Logo Here]
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text.
+Lorem Ipsum is simply dummy text of the printi
+
+--- Slide 3 ---
+  [TEXT_BOX (17)] <Heading>
+  [TEXT_BOX (17)] [ IMAGE ]
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
+
+--- Slide 4 ---
+  [TEXT_BOX (17)] <Add your title here>
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
+  [TEXT_BOX (17)] Caption
+Subheading
+  [TEXT_BOX (17)] Caption
+Subheading
+  [TEXT_BOX (17)] Caption
+Subheading
+  [TEXT_BOX (17)] Caption
+Subheading
+
+--- Slide 5 ---
+  [TEXT_BOX (17)] <Add your title here>
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
+  [TEXT_BOX (17)] Use this space for highlighted text
+
+--- Slide 6 ---
+  [TEXT_BOX (17)] <Add your title here>
+  [TEXT_BOX (17)] [ IMAGE ]
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
+  [TEXT_BOX (17)] Add Pointer here
+  [TEXT_BOX (17)] 01
+  [TEXT_BOX (17)] 03
+  [TEXT_BOX (17)] Add Pointer here
+  [TEXT_BOX (17)] 02
+  [TEXT_BOX (17)] Add Pointer here
+  [TEXT_BOX (17)] 04
+  [TEXT_BOX (17)] Add Pointer here
+
+--- Slide 7 ---
+  [TEXT_BOX (17)] <Heading>
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
+
+--- Slide 8 ---
+  [TEXT_BOX (17)] <Heading>
+  [TEXT_BOX (17)] Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
+  [TEXT_BOX (17)] Description for
+Sample Text
+  [TEXT_BOX (17)] Description for
+Sample Text
+  [TEXT_BOX (17)] Sample Text
+  [TEXT_BOX (17)] Sample Text
+  [TEXT_BOX (17)] Description for
+Sample Text
+  [TEXT_BOX (17)] Sample Text
+  [TEXT_BOX (17)] Description for
+Sample Text
+  [TEXT_BOX (17)] Sample Text
+  [TEXT_BOX (17)] Description for
+Sample Text
+  [TEXT_BOX (17)] Sample Text
+
+--- Slide 9 ---
+  [TEXT_BOX (17)] Submission by:
+  [TEXT_BOX (17)] Sample text 1
+Sample text 2
+Sample text 3

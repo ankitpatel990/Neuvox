@@ -1,0 +1,96 @@
+--- Page 1 ---
+ 
+Presentation  Points   
+Submission  Deadline:  13th  Feb  2026    
+Mail  to:   missionupskillindia@hclguvi.com   
+Subject  line  :  <Team  name>  PPT  ||  India  AI  Impact  Buildathon   
+ PPT  Format  -  Link (Make  a  copy  of  this  Standard  slide  to  create  your  ppt  in  this  format)  
+Late  submissions  will  not  be  accepted  and  will  be  disqualified .   
+Your  presentation  should  follow  these  guidelines .   You  do  not  need  to  answer  every  sub-question —cover  only  what  is  relevant  to  your  solution.   
+ 
+ 1)  The  Problem   
+What  real  problem  are  you  solving?   
+Example:   
+●  What  is  happening  today?   
+●  Why  is  it  a  problem?   
+●  Who  is  affected?   
+2)  Our  Solution   
+What  did  you  build?   
+Example:   
+●  What  the  system  does   
+●  One  key  capability   
+3)  How  It  Works  (Simple  Flow)   
+
+--- Page 2 ---
+ 
+Explain  like  you’re  talking  to  a  non-tech  person   
+You  must  explain:   
+●  Input  →  Decision  →  Output   
+●  No  algorithms,  no  jargon  
+ 
+4)  Proof  It  Works  (15  seconds)   
+Evidence   
+You  can  show  or  say:   
+●  Demo   
+●  Test  result   
+●  Real  example   
+5)  A  Nuance  You  Handled  That  Others  Might  Miss  
+What
+ 
+subtle
+ 
+issue
+ 
+did
+ 
+you
+ 
+explicitly
+ 
+design
+ 
+for?
+ 
+ 
+Examples:   
+●  Mixed  language  audio/messages   
+●  Over-polite  scam  messages   
+●  Human  voices  that  sound  robotic   
+●  Repeated  scam  attempts  in  one  session   
+6)  A  Trade-Off  You  Made  (and  Why)   
+What  did  you  choose  not  to  optimize?   
+Examples:   
+●  Accuracy  vs  latency   
+
+--- Page 3 ---
+ 
+●  Aggressive  detection  vs  safety   
+●  Engagement  depth  vs  containment   
+7)  A  Failure  Case  You  Can  Explain  Clearly  
+Where
+ 
+Does
+ 
+Your
+ 
+System
+ 
+Struggle
+ 
+Today?
+ 
+ 
+Examples:   ●  Certain  accents   
+●  Very  short  conversations   
+●  Novel  AI  voice  models   
+Scoring  Overview:  
+ Evaluation  Parameter  Score  
+Problem–Solution  Clarity  20  
+Solution  Innovation  &  Design  15  
+Technical  Approach  (High-Level  Explanation)  
+20  
+Real-World  Impact  &  Applicability  15  
+Demo  &  Proof  of  Work  20  
+Communication  &  Pitch  Quality  10  
+Total  100  
+ 

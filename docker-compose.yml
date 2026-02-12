@@ -12,12 +12,14 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: scamshield-api
+    # Map host port 8000 to container port 7860 (Dockerfile uses 7860)
     ports:
-      - "8000:8000"
+      - "8000:7860"
     environment:
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=INFO
+      - API_PORT=7860
       - GROQ_API_KEY=${GROQ_API_KEY}
       - POSTGRES_URL=postgresql://scamshield:password@postgres:5432/scamshield
       - REDIS_URL=redis://redis:6379/0

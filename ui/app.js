@@ -7,12 +7,12 @@
 // ============================================================================
 // Configuration
 // ============================================================================
-const API_BASE_URL = 'http://127.0.0.1:8005';  // Your server is running on port 8005
+// Use relative URLs so the UI works on any host/port (local, Docker, HF Spaces)
 const API_ENDPOINTS = {
-    engage: `${API_BASE_URL}/api/v1/honeypot/engage`,
-    session: `${API_BASE_URL}/api/v1/honeypot/session`,
-    health: `${API_BASE_URL}/api/v1/health`,
-    batch: `${API_BASE_URL}/api/v1/honeypot/batch`,
+    engage: '/api/v1/honeypot/engage',
+    session: '/api/v1/honeypot/session',
+    health: '/api/v1/health',
+    batch: '/api/v1/honeypot/batch',
 };
 
 // Example scam messages for quick testing

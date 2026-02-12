@@ -150,8 +150,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routes
+# Include Phase 1 API routes
 app.include_router(router)
+
+# Conditionally include Phase 2 voice routes (opt-in, default disabled)
+if getattr(settings, "PHASE_2_ENABLED", False):
+    try:
+        from app.api.voice_endpoints import voice_router
+        app.include_router(voice_router)
+        logger.info("Phase 2 voice endpoints enabled")
+    except ImportError as e:
+        logger.warning(f"Phase 2 voice endpoints unavailable (missing dependencies): {e}")
+    except Exception as e:
+        logger.error(f"Failed to load Phase 2 voice endpoints: {e}")
+else:
+    logger.info("Phase 2 voice features disabled (PHASE_2_ENABLED=false)")
 
 # Mount static files for UI
 ui_path = Path(__file__).parent.parent / "ui"
@@ -178,6 +191,17 @@ if ui_path.exists():
         if guvi_test_file.exists():
             return FileResponse(guvi_test_file)
         return {"message": "GUVI Tester UI not found"}
+
+    # Serve Phase 2 Voice UI at /voice (only when Phase 2 is enabled)
+    if getattr(settings, "PHASE_2_ENABLED", False):
+        @app.get("/voice", include_in_schema=False)
+        async def serve_voice_ui():
+            """Serve the Phase 2 Voice Honeypot UI."""
+            from fastapi.responses import FileResponse
+            voice_file = ui_path / "voice.html"
+            if voice_file.exists():
+                return FileResponse(voice_file)
+            return {"message": "Voice UI not found"}
 
 
 @app.exception_handler(Exception)

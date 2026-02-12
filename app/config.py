@@ -88,6 +88,15 @@ class Settings:
         self.EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
         self.HUGGINGFACE_TOKEN: Optional[str] = os.getenv("HUGGINGFACE_TOKEN")
         
+        # Phase 2: Voice Features (opt-in, default disabled)
+        self.PHASE_2_ENABLED: bool = os.getenv("PHASE_2_ENABLED", "false").lower() == "true"
+        self.WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "base")
+        self.WHISPER_DEVICE: str = os.getenv("WHISPER_DEVICE", "auto")
+        self.TTS_ENGINE: str = os.getenv("TTS_ENGINE", "gtts")
+        self.VOICE_FRAUD_DETECTION: bool = os.getenv("VOICE_FRAUD_DETECTION", "false").lower() == "true"
+        self.AUDIO_SAMPLE_RATE: int = int(os.getenv("AUDIO_SAMPLE_RATE", "16000"))
+        self.AUDIO_CHUNK_DURATION: int = int(os.getenv("AUDIO_CHUNK_DURATION", "5"))
+        
         # API Authentication (GUVI Hackathon Requirement)
         self.API_KEY: Optional[str] = os.getenv("API_KEY")
         

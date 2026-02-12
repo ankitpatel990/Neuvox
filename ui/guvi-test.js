@@ -7,7 +7,9 @@
 // State
 // ============================================================================
 const state = {
-    apiBaseUrl: 'http://127.0.0.1:8005',
+    // Use empty string for relative URLs (works on any host/port)
+    // Users can override via the input field if testing against a different server
+    apiBaseUrl: '',
     apiKey: '',  // Not required in development mode
     connected: false,
     
@@ -88,10 +90,18 @@ function setupFormListeners() {
     document.getElementById('apiBaseUrl').addEventListener('change', (e) => {
         let baseUrl = e.target.value.trim();
         
+        // Empty string = relative URLs (same origin as page)
+        if (baseUrl === '') {
+            state.apiBaseUrl = '';
+            e.target.value = '';
+            saveConfig();
+            return;
+        }
+        
         // Clean up the URL - only keep origin (protocol + host + port)
         try {
             const url = new URL(baseUrl);
-            baseUrl = url.origin;  // e.g., "http://127.0.0.1:8005"
+            baseUrl = url.origin;
         } catch (err) {
             // If invalid URL, try to fix common issues
             if (!baseUrl.startsWith('http')) {
@@ -114,15 +124,18 @@ function loadConfig() {
     const saved = localStorage.getItem('guvi-tester-config');
     if (saved) {
         const config = JSON.parse(saved);
-        let baseUrl = config.apiBaseUrl || state.apiBaseUrl;
+        // Allow empty string for relative URLs
+        let baseUrl = config.apiBaseUrl !== undefined ? config.apiBaseUrl : state.apiBaseUrl;
         
         // Fix: Remove any path that was accidentally appended
-        // Only keep the origin (protocol + host + port)
-        try {
-            const url = new URL(baseUrl);
-            baseUrl = url.origin;  // e.g., "http://127.0.0.1:8005"
-        } catch (e) {
-            baseUrl = state.apiBaseUrl;  // fallback to default
+        // Only keep the origin (protocol + host + port), unless empty (relative)
+        if (baseUrl !== '') {
+            try {
+                const url = new URL(baseUrl);
+                baseUrl = url.origin;
+            } catch (e) {
+                baseUrl = '';  // fallback to relative URLs
+            }
         }
         
         state.apiBaseUrl = baseUrl;

@@ -1,0 +1,91 @@
+Slide 1: Title
+INDIA AI IMPACT BUILDATHON
+Challenge 2: Agentic Honeypot for Scam Detection
+Team: ScamShield AI
+Slide 2: Introduction
+Project Name: ScamShield AI
+Tagline: An autonomous agentic honeypot system that detects scam messages, engages scammers with believable AI personas, and extracts actionable intelligence (UPI, Bank Accounts, Links).
+Slide 3: The Problem
+1) THE PROBLEM
+🚨 What is happening?
+500,000+ scam calls/msgs daily
+₹60+ crore daily losses
+47% Indians affected
+Target: UPI, Loans, KYC
+⚠️ Why is it a problem?
+Passive detection fails
+Scammers evolve fast
+No intelligence gathered
+Citizens feel helpless
+👥 Who is affected?
+Elderly & Non-tech savvy
+Middle-class families
+Banks (Reputation loss)
+Law Enforcement (Overload)
+Slide 4: Our Solution
+2) OUR SOLUTION
+🎯 Detection
+IndicBERT + Rules
+Hindi, English, Hinglish
+90%+ Accuracy Target
+🤖 Engagement
+LangGraph Agent
+Dynamic Personas (Elderly, Eager)
+Up to 20 turns conversation
+🔍 Extraction
+Extracts UPI, Bank, IFSC
+Captures Phishing Links
+Structured JSON Output
+🚀 Integration
+REST API Endpoint
+Mock Scammer API Ready
+Dockerized & Scalable
+Slide 5: How It Works
+3) HOW IT WORKS
+STEP 1: INPUT
+Message arrives: "You won 10 lakh! Send OTP."
+STEP 2: DECISION (AI)
+Confidence > 70%? Yes -> Trigger Honeypot
+STEP 3: ENGAGE
+Agent (Persona): "Oh wow! How do I get it?"
+STEP 4: EXTRACT & OUTPUT
+Scammer shares UPI -> We capture it -> JSON Report
+Simple Flow: Message In ➡️ Scam Check ➡️ Fake Victim Talks ➡️ Proof Extracted
+Slide 6: Proof It Works
+4) PROOF IT WORKS
+✅ Live API Demo: POST /honeypot/engage works in <2s
+📊 Test Metrics: Validated on 100+ scam samples
+🇮🇳 Real Context: Handles Hindi/Hinglish perfectly
+🛡️ Extraction: Success: Captured UPIs & Links
+Slide 7: A Nuance We Handled
+5) A NUANCE WE HANDLED
+🌐 Mixed Language
+Handles Code-Mixing (Hindi + English)
+IndicBERT trained on Indian datasets
+😇 Over-Polite Scams
+Personas don't get suspicious
+Elderly/Confused tones matches scammer's pace
+🔄 Persistence
+Redis Session State
+Remembers Context
+Engages for 10+ turns
+Slide 8: Trade-Offs & Failure Cases
+6) TRADE-OFF & 7) FAILURE CASE
+⚖️ Trade-Off: Depth vs Speed
+Choice: Maximize engagement depth
+Why: More turns = More Intelligence
+Cost: Higher latency (1-2s)
+Note: Not optimized for instant blocking
+❌ Failure Case: Short Convos
+Struggle: Scammer stops after 1 msg
+Result: No intelligence extracted
+Mitigation: 'Eager' persona to bait
+Struggle: Novel templates (Low Conf)
+Slide 9: Submission Details
+SUBMISSION DETAILS
+Team: ScamShield AI
+Challenge 2: Agentic Honeypot
+Tech Stack: IndicBERT, LangGraph, Groq, FastAPI
+Contact: missionupskillindia@hclguvi.com
+Subject: ScamShield AI PPT || India AI Impact Buildathon
+Deadline: 13th Feb 2026

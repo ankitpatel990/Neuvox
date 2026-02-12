@@ -30,74 +30,162 @@ def generate_agent_notes(
     scam_indicators: List[str],
 ) -> str:
     """
-    Generate a summary of scammer behavior for agent notes.
-    
-    Analyzes the conversation and extracted intelligence to create
-    a human-readable summary of the scammer's tactics.
-    
+    Generate a detailed summary of scammer behavior for agent notes.
+
+    Produces a law-enforcement-friendly summary covering:
+    - Identified scam type
+    - Tactics used (urgency, threats, impersonation, etc.)
+    - Extracted intelligence summary
+    - Conversation depth
+
     Args:
         messages: List of conversation messages
         extracted_intel: Extracted intelligence dictionary
         scam_indicators: List of detected scam indicators/keywords
-        
+
     Returns:
         Agent notes string summarizing scammer behavior
     """
-    notes_parts = []
-    
-    # Analyze scammer messages for tactics
-    scammer_messages = [m.get("message", "") for m in messages if m.get("sender") == "scammer"]
+    notes_parts: List[str] = []
+
+    scammer_messages = [
+        m.get("message", "") for m in messages if m.get("sender") == "scammer"
+    ]
     full_scammer_text = " ".join(scammer_messages).lower()
-    
-    # Check for urgency tactics
-    urgency_words = ["urgent", "immediately", "now", "today", "hurry", "quick", "fast", "expire", "last chance"]
-    if any(word in full_scammer_text for word in urgency_words):
-        notes_parts.append("Scammer used urgency tactics")
-    
-    # Check for authority impersonation
-    authority_words = ["police", "court", "government", "bank official", "rbi", "investigation", "arrest", "legal"]
-    if any(word in full_scammer_text for word in authority_words):
-        notes_parts.append("attempted authority impersonation")
-    
-    # Check for prize/lottery scam
-    prize_words = ["won", "winner", "prize", "lottery", "jackpot", "lucky", "congratulations", "reward"]
-    if any(word in full_scammer_text for word in prize_words):
-        notes_parts.append("used prize/lottery lure")
-    
-    # Check for payment redirection attempts
-    payment_words = ["upi", "transfer", "send money", "pay", "account number", "bank details"]
-    if any(word in full_scammer_text for word in payment_words):
-        notes_parts.append("attempted payment redirection")
-    
-    # Check for OTP/credential harvesting
-    credential_words = ["otp", "password", "pin", "cvv", "verify", "confirm"]
-    if any(word in full_scammer_text for word in credential_words):
-        notes_parts.append("attempted credential harvesting")
-    
-    # Check for threat tactics
-    threat_words = ["block", "suspend", "deactivate", "arrest", "fine", "penalty", "legal action"]
-    if any(word in full_scammer_text for word in threat_words):
-        notes_parts.append("used threat/fear tactics")
-    
-    # Add intelligence summary
-    intel_items = []
+    full_scammer_raw = " ".join(scammer_messages)
+
+    # ---- Scam type identification ----
+    scam_type = _identify_scam_type(full_scammer_text, full_scammer_raw)
+    if scam_type:
+        notes_parts.append(f"Scam type: {scam_type}")
+
+    # ---- Tactic detection ----
+    urgency_words = [
+        "urgent", "immediately", "now", "today", "hurry", "quick",
+        "fast", "expire", "last chance", "turant", "jaldi", "abhi",
+        "\u0924\u0941\u0930\u0902\u0924", "\u091c\u0932\u094d\u0926\u0940",
+    ]
+    if any(w in full_scammer_text or w in full_scammer_raw for w in urgency_words):
+        notes_parts.append("Used urgency tactics to pressure victim")
+
+    authority_words = [
+        "police", "court", "government", "bank official", "rbi",
+        "investigation", "arrest", "legal", "warrant", "department",
+        "\u092a\u0941\u0932\u093f\u0938",
+        "\u0917\u093f\u0930\u092b\u094d\u0924\u093e\u0930",
+    ]
+    if any(w in full_scammer_text or w in full_scammer_raw for w in authority_words):
+        notes_parts.append("Attempted authority/official impersonation")
+
+    prize_words = [
+        "won", "winner", "prize", "lottery", "jackpot", "lucky",
+        "congratulations", "reward", "jeeta", "jeet", "inaam",
+        "\u091c\u0940\u0924\u093e", "\u0907\u0928\u093e\u092e",
+    ]
+    if any(w in full_scammer_text or w in full_scammer_raw for w in prize_words):
+        notes_parts.append("Used prize/lottery lure")
+
+    payment_words = [
+        "upi", "transfer", "send money", "pay", "account number",
+        "bank details", "paise bhejo", "transfer karo",
+        "\u092a\u0948\u0938\u0947 \u092d\u0947\u091c\u094b",
+    ]
+    if any(w in full_scammer_text or w in full_scammer_raw for w in payment_words):
+        notes_parts.append("Attempted payment/money redirection")
+
+    credential_words = [
+        "otp", "password", "pin", "cvv", "verify", "confirm",
+        "otp bhejo", "verify karo", "\u0913\u091f\u0940\u092a\u0940",
+    ]
+    if any(w in full_scammer_text or w in full_scammer_raw for w in credential_words):
+        notes_parts.append("Attempted OTP/credential harvesting")
+
+    threat_words = [
+        "block", "suspend", "deactivate", "arrest", "fine",
+        "penalty", "legal action", "case file", "fir",
+        "\u092c\u094d\u0932\u0949\u0915", "\u092c\u0902\u0926",
+    ]
+    if any(w in full_scammer_text or w in full_scammer_raw for w in threat_words):
+        notes_parts.append("Used threat/fear tactics")
+
+    kyc_words = ["kyc", "aadhaar", "pan card", "pan number", "link expired", "update kyc"]
+    if any(w in full_scammer_text for w in kyc_words):
+        notes_parts.append("Used KYC/document verification lure")
+
+    loan_words = ["loan approved", "pre-approved", "emi", "interest rate", "loan offer"]
+    if any(w in full_scammer_text for w in loan_words):
+        notes_parts.append("Used fake loan/credit offer")
+
+    delivery_words = ["delivery failed", "customs", "parcel", "courier", "shipment"]
+    if any(w in full_scammer_text for w in delivery_words):
+        notes_parts.append("Used fake delivery/parcel scam")
+
+    # ---- Intelligence summary ----
+    intel_items: List[str] = []
     if extracted_intel.get("upi_ids"):
-        intel_items.append(f"{len(extracted_intel['upi_ids'])} UPI ID(s)")
-    if extracted_intel.get("phone_numbers"):
-        intel_items.append(f"{len(extracted_intel['phone_numbers'])} phone number(s)")
+        items = extracted_intel["upi_ids"]
+        intel_items.append(f"{len(items)} UPI ID(s): {', '.join(items[:3])}")
     if extracted_intel.get("bank_accounts"):
-        intel_items.append(f"{len(extracted_intel['bank_accounts'])} bank account(s)")
+        items = extracted_intel["bank_accounts"]
+        intel_items.append(f"{len(items)} bank account(s)")
+    if extracted_intel.get("ifsc_codes"):
+        items = extracted_intel["ifsc_codes"]
+        intel_items.append(f"{len(items)} IFSC code(s): {', '.join(items[:3])}")
+    if extracted_intel.get("phone_numbers"):
+        items = extracted_intel["phone_numbers"]
+        intel_items.append(f"{len(items)} phone number(s): {', '.join(items[:3])}")
     if extracted_intel.get("phishing_links"):
-        intel_items.append(f"{len(extracted_intel['phishing_links'])} phishing link(s)")
-    
+        items = extracted_intel["phishing_links"]
+        intel_items.append(f"{len(items)} phishing link(s)")
+
     if intel_items:
-        notes_parts.append(f"Extracted: {', '.join(intel_items)}")
-    
-    # Build final notes
+        notes_parts.append(f"Extracted intelligence: {'; '.join(intel_items)}")
+
+    # ---- Conversation depth ----
+    total_turns = len(scammer_messages)
+    if total_turns > 0:
+        notes_parts.append(f"Conversation depth: {total_turns} scammer message(s) analyzed")
+
     if notes_parts:
         return ". ".join(notes_parts) + "."
-    else:
-        return "Scam engagement completed. Limited intelligence extracted."
+    return "Scam engagement completed. Limited intelligence extracted."
+
+
+def _identify_scam_type(text_lower: str, text_raw: str) -> Optional[str]:
+    """
+    Identify the primary scam type from scammer text.
+
+    Returns a human-readable scam type label or None if unknown.
+    """
+    # Order matters: more specific checks first
+    if any(w in text_lower for w in ["kyc", "aadhaar", "pan card", "update kyc"]):
+        return "KYC/Document Verification Fraud"
+    if any(w in text_lower for w in ["loan approved", "pre-approved", "emi", "loan offer"]):
+        return "Fake Loan/Credit Offer"
+    if any(w in text_lower for w in ["delivery failed", "customs", "parcel", "courier"]):
+        return "Fake Delivery/Parcel Scam"
+    if any(w in text_lower for w in ["won", "winner", "prize", "lottery", "jackpot"]):
+        return "Prize/Lottery Scam"
+    if any(w in text_lower for w in [
+        "police", "arrest", "warrant", "court", "legal action", "investigation",
+        "\u092a\u0941\u0932\u093f\u0938", "\u0917\u093f\u0930\u092b\u094d\u0924\u093e\u0930",
+    ]) or any(w in text_raw for w in [
+        "\u092a\u0941\u0932\u093f\u0938", "\u0917\u093f\u0930\u092b\u094d\u0924\u093e\u0930",
+    ]):
+        return "Authority/Police Impersonation"
+    if any(w in text_lower for w in [
+        "bank official", "rbi", "bank manager", "account blocked", "account suspended",
+    ]):
+        return "Bank Official Impersonation"
+    if any(w in text_lower for w in ["otp", "password", "pin", "cvv"]):
+        return "Credential/OTP Harvesting"
+    if any(w in text_lower for w in ["refund", "cashback", "insurance claim"]):
+        return "Refund/Insurance Scam"
+    if any(w in text_lower for w in ["investment", "returns", "crypto", "trading", "profit"]):
+        return "Investment/Trading Scam"
+    if any(w in text_lower for w in ["upi", "send money", "transfer", "pay"]):
+        return "Payment Redirection Fraud"
+    return None
 
 
 def extract_suspicious_keywords(
@@ -106,37 +194,80 @@ def extract_suspicious_keywords(
 ) -> List[str]:
     """
     Extract suspicious keywords from the conversation.
-    
+
+    Checks scammer messages for English, Hindi, and Hinglish scam keywords
+    so that multilingual conversations produce meaningful keyword lists.
+
     Args:
         messages: List of conversation messages
         scam_indicators: List of detected scam indicators from detector
-        
+
     Returns:
-        List of suspicious keywords found in messages
+        List of suspicious keywords found in messages (up to 25)
     """
-    # Base keywords from detector
     keywords = set(scam_indicators) if scam_indicators else set()
-    
-    # Additional suspicious keyword patterns to check
-    suspicious_patterns = [
-        "urgent", "immediately", "now", "today", "hurry",
-        "won", "winner", "prize", "lottery", "jackpot",
-        "otp", "verify", "confirm", "blocked", "suspended",
-        "police", "arrest", "court", "legal", "investigation",
+
+    # English suspicious patterns
+    en_patterns = [
+        "urgent", "immediately", "now", "today", "hurry", "fast", "quick",
+        "won", "winner", "prize", "lottery", "jackpot", "congratulations",
+        "otp", "verify", "confirm", "blocked", "suspended", "deactivated",
+        "police", "arrest", "court", "legal", "investigation", "warrant",
         "transfer", "send money", "pay now", "account blocked",
         "free", "gift", "reward", "selected", "lucky",
-        "click here", "call now", "limited time",
+        "click here", "call now", "limited time", "expire",
+        "kyc", "aadhaar", "pan card", "link expired",
+        "upi", "bank account", "ifsc", "cvv", "pin",
+        "loan approved", "credit card", "insurance", "refund",
+        "delivery failed", "customs", "parcel",
     ]
-    
-    # Check scammer messages for keywords
-    scammer_messages = [m.get("message", "") for m in messages if m.get("sender") == "scammer"]
+
+    # Hindi / Hinglish suspicious patterns
+    hi_patterns = [
+        "turant", "jaldi", "abhi",
+        "jeeta", "jeet", "inaam", "lottery",
+        "otp bhejo", "verify karo", "confirm karo",
+        "block", "suspend", "band",
+        "police", "giraftaar", "giraftari", "court", "kanoon",
+        "paise bhejo", "transfer karo", "pay karo",
+        "muft", "free", "gift",
+        "link pe click", "call karo",
+        "kyc update", "aadhaar", "pan",
+        "loan", "insurance", "refund",
+        # Devanagari
+        "\u0924\u0941\u0930\u0902\u0924",           # turant
+        "\u091c\u0932\u094d\u0926\u0940",           # jaldi
+        "\u0905\u092d\u0940",                       # abhi
+        "\u091c\u0940\u0924\u093e",                 # jeeta
+        "\u0907\u0928\u093e\u092e",                 # inaam
+        "\u0932\u0949\u091f\u0930\u0940",           # lottery
+        "\u092a\u0941\u0932\u093f\u0938",           # police
+        "\u0917\u093f\u0930\u092b\u094d\u0924\u093e\u0930", # giraftaar
+        "\u092a\u0948\u0938\u0947 \u092d\u0947\u091c\u094b", # paise bhejo
+        "\u091f\u094d\u0930\u093e\u0902\u0938\u092b\u0930",  # transfer
+        "\u092c\u094d\u0932\u0949\u0915",           # block
+        "\u092c\u0948\u0902\u0915",                 # bank
+        "\u0916\u093e\u0924\u093e",                 # khaata
+        "\u092f\u0942\u092a\u0940\u0906\u0908",     # UPI
+        "\u0913\u091f\u0940\u092a\u0940",           # OTP
+    ]
+
+    scammer_messages = [
+        m.get("message", "") for m in messages if m.get("sender") == "scammer"
+    ]
     full_text = " ".join(scammer_messages).lower()
-    
-    for pattern in suspicious_patterns:
+
+    for pattern in en_patterns:
         if pattern in full_text:
             keywords.add(pattern)
-    
-    return list(keywords)[:20]  # Limit to 20 keywords
+
+    # Hindi patterns need original-case text for Devanagari matching
+    full_text_raw = " ".join(scammer_messages)
+    for pattern in hi_patterns:
+        if pattern.lower() in full_text or pattern in full_text_raw:
+            keywords.add(pattern)
+
+    return sorted(keywords)[:25]
 
 
 def send_final_result_to_guvi(
