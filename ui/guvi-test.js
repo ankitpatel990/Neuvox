@@ -10,7 +10,7 @@ const state = {
     // Use empty string for relative URLs (works on any host/port)
     // Users can override via the input field if testing against a different server
     apiBaseUrl: '',
-    apiKey: '',  // Not required in development mode
+    apiKey: 'sVlunn0LMQZNAkRYqZB-f1-Ye7rgzjB_E3b1gNxnUV8',
     connected: false,
     
     // Multi-turn state

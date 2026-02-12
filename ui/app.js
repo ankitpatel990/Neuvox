@@ -66,7 +66,7 @@ async function checkHealth() {
     try {
         const response = await fetch(API_ENDPOINTS.health, {
             headers: {
-                'x-api-key': 'dev-key-12345', // Development API key (optional)
+                'x-api-key': 'sVlunn0LMQZNAkRYqZB-f1-Ye7rgzjB_E3b1gNxnUV8',
             },
         });
         const data = await response.json();
@@ -133,7 +133,7 @@ async function sendMessage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': 'dev-key-12345', // Development API key (optional if not configured on server)
+                'x-api-key': 'sVlunn0LMQZNAkRYqZB-f1-Ye7rgzjB_E3b1gNxnUV8',
             },
             body: JSON.stringify(payload),
         });

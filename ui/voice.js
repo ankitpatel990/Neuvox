@@ -15,7 +15,7 @@ var VOICE_ENDPOINTS = {
     audio: '/api/v1/voice/audio',
     health: '/api/v1/voice/health',
 };
-var API_KEY = 'dev-key-12345';
+var API_KEY = 'sVlunn0LMQZNAkRYqZB-f1-Ye7rgzjB_E3b1gNxnUV8';
 var RECORDING_MIME_TYPES = [
     'audio/webm;codecs=opus',
     'audio/webm',
