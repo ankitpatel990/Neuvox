@@ -45,7 +45,7 @@ let state = {
 // Initialization
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🛡️ ScamShield AI Dashboard initialized');
+    console.log('Trinetra AI Dashboard initialized');
     checkHealth();
     
     // Auto-refresh health every 30 seconds
@@ -576,7 +576,7 @@ function downloadReport() {
     
     const a = document.createElement('a');
     a.href = url;
-    a.download = `scamshield-report-${state.sessionId || 'unknown'}.json`;
+    a.download = `trinetra-report-${state.sessionId || 'unknown'}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

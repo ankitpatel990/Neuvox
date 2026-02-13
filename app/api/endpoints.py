@@ -186,27 +186,27 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})) -> En
         # Save session state to Redis (with in-memory fallback)
         save_session_state_with_fallback(session_id, result)
         
-        # Save conversation to PostgreSQL (optional, graceful degradation)
-        try:
-            from app.database.postgres import save_conversation
-            
-            conversation_data = {
-                "language": detected_language,
-                "persona": result.get("persona"),
-                "scam_confidence": confidence,
-                "turn_count": result.get("turn_count", 1),
-                "messages": result.get("messages", []),
-                "extracted_intel": intel,
-                "extraction_confidence": extraction_confidence,
-            }
-            
-            conversation_id = save_conversation(session_id, conversation_data)
-            if conversation_id > 0:
-                logger.debug(f"Conversation saved to PostgreSQL: id={conversation_id}")
-        except Exception as e:
-            # PostgreSQL save failed, but continue - Redis already saved the session
-            logger.warning(f"Failed to save conversation to PostgreSQL: {e}")
-            logger.info("Session state saved to Redis, continuing without PostgreSQL persistence")
+        # Save conversation to PostgreSQL only when configured (avoids loading SQLAlchemy on Python 3.14 when unused)
+        if settings.POSTGRES_URL:
+            try:
+                from app.database.postgres import save_conversation
+
+                conversation_data = {
+                    "language": detected_language,
+                    "persona": result.get("persona"),
+                    "scam_confidence": confidence,
+                    "turn_count": result.get("turn_count", 1),
+                    "messages": result.get("messages", []),
+                    "extracted_intel": intel,
+                    "extraction_confidence": extraction_confidence,
+                }
+
+                conversation_id = save_conversation(session_id, conversation_data)
+                if conversation_id > 0:
+                    logger.debug(f"Conversation saved to PostgreSQL: id={conversation_id}")
+            except Exception as e:
+                logger.warning(f"Failed to save conversation to PostgreSQL: {e}")
+                logger.info("Session state saved to Redis, continuing without PostgreSQL persistence")
         
         # Build conversation history for response
         conversation_history_response = []
@@ -397,11 +397,10 @@ async def get_session(session_id: str) -> SessionResponse:
     
     try:
         from app.database.redis_client import get_session_state_with_fallback
-        from app.database.postgres import get_conversation
-        
+
         # Try Redis first (active sessions)
         session_state = get_session_state_with_fallback(session_id)
-        
+
         if session_state:
             # Build response from Redis session state
             messages = session_state.get("messages", [])
@@ -451,9 +450,15 @@ async def get_session(session_id: str) -> SessionResponse:
                 updated_at=updated_at,
             )
         
-        # Try PostgreSQL for archived sessions
-        conversation = get_conversation(session_id)
-        
+        # Try PostgreSQL for archived sessions (only when configured; avoids loading SQLAlchemy when unused)
+        conversation = None
+        if settings.POSTGRES_URL:
+            try:
+                from app.database.postgres import get_conversation
+                conversation = get_conversation(session_id)
+            except Exception as e:
+                logger.warning(f"Failed to get conversation from PostgreSQL: {e}")
+
         if conversation:
             messages = conversation.get("messages", [])
             conversation_history = []
@@ -545,13 +550,14 @@ async def health_check() -> HealthResponse:
         logger.warning(f"Redis health check failed: {e}")
         redis_status = "offline"
     
-    # Check PostgreSQL
-    try:
-        from app.database.postgres import verify_schema
-        postgres_status = "online" if verify_schema() else "degraded"
-    except Exception as e:
-        logger.warning(f"PostgreSQL health check failed: {e}")
-        postgres_status = "offline"
+    # Check PostgreSQL (only when configured; avoids loading SQLAlchemy on Python 3.14 when unused)
+    if settings.POSTGRES_URL:
+        try:
+            from app.database.postgres import verify_schema
+            postgres_status = "online" if verify_schema() else "degraded"
+        except Exception as e:
+            logger.warning(f"PostgreSQL health check failed: {e}")
+            postgres_status = "offline"
     
     # Check Groq API (just check if API key is configured)
     try:

@@ -111,14 +111,14 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down ScamShield AI...")
     
-    # Cleanup resources
-    try:
-        from app.database.postgres import engine
-        if engine:
-            engine.dispose()
-            logger.info("PostgreSQL connections closed")
-    except Exception as e:
-        logger.warning(f"Error closing PostgreSQL connections: {e}")
+    if settings.POSTGRES_URL:
+        try:
+            from app.database.postgres import engine
+            if engine:
+                engine.dispose()
+                logger.info("PostgreSQL connections closed")
+        except Exception as e:
+            logger.warning(f"Error closing PostgreSQL connections: {e}")
     
     try:
         from app.database.redis_client import redis_client
@@ -133,8 +133,8 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI application
 app = FastAPI(
-    title="ScamShield AI",
-    description="Agentic Honeypot System for Scam Detection & Intelligence Extraction",
+    title="Trinetra AI",
+    description="Detect. Engage. Expose. Agentic Honeypot for Scam Detection and Intelligence Extraction.",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.DEBUG else None,

@@ -11,29 +11,12 @@ Task 6.2 Implementation:
 - AC-2.3.2: Session expires after 1 hour
 - AC-2.3.3: PostgreSQL stores complete logs
 - AC-2.3.4: Redis failure degrades gracefully
+
+Note: PostgreSQL is not imported here to avoid loading SQLAlchemy when POSTGRES_URL
+is unset (Python 3.14 typing compatibility). Import from app.database.postgres directly
+when POSTGRES_URL is configured.
 """
 
-from app.database.postgres import (
-    # Connection management
-    get_db_connection,
-    get_db_session,
-    init_engine,
-    init_database,
-    verify_schema,
-    SessionLocal,
-    # Conversation CRUD
-    save_conversation,
-    get_conversation,
-    update_conversation,
-    delete_conversation,
-    get_conversations_by_date,
-    get_conversation_stats,
-    # Messages
-    save_messages,
-    # Intelligence
-    save_intelligence,
-    get_scammer_profiles,
-)
 from app.database.redis_client import (
     # Connection management
     get_redis_client,
@@ -67,28 +50,8 @@ from app.database.chromadb_client import (
     store_embedding,
     search_similar,
 )
-from app.database.models import Conversation, Message, ExtractedIntelligence
 
 __all__ = [
-    # PostgreSQL - Connection
-    "get_db_connection",
-    "get_db_session",
-    "init_engine",
-    "init_database",
-    "verify_schema",
-    "SessionLocal",
-    # PostgreSQL - Conversation CRUD
-    "save_conversation",
-    "get_conversation",
-    "update_conversation",
-    "delete_conversation",
-    "get_conversations_by_date",
-    "get_conversation_stats",
-    # PostgreSQL - Messages
-    "save_messages",
-    # PostgreSQL - Intelligence
-    "save_intelligence",
-    "get_scammer_profiles",
     # Redis - Connection
     "get_redis_client",
     "init_redis_client",
@@ -119,8 +82,4 @@ __all__ = [
     "get_chromadb_client",
     "store_embedding",
     "search_similar",
-    # Models
-    "Conversation",
-    "Message",
-    "ExtractedIntelligence",
 ]

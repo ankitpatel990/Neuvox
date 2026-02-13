@@ -140,6 +140,9 @@ class IntelligenceExtractor:
         except OSError:
             logger.warning("spaCy model 'en_core_web_sm' not found, using regex-only")
             self.nlp = None
+        except Exception as e:
+            logger.warning("spaCy load failed (%s), using regex-only extraction", e)
+            self.nlp = None
     
     def extract(self, text: str) -> Tuple[Dict[str, List[str]], float]:
         """
@@ -613,13 +616,15 @@ _extractor: Optional[IntelligenceExtractor] = None
 def get_extractor() -> IntelligenceExtractor:
     """
     Get singleton extractor instance.
-    
-    Returns:
-        IntelligenceExtractor instance
+    Falls back to regex-only if spaCy fails (e.g. Python 3.14 compatibility).
     """
     global _extractor
     if _extractor is None:
-        _extractor = IntelligenceExtractor()
+        try:
+            _extractor = IntelligenceExtractor(use_spacy=True)
+        except Exception as e:
+            logger.warning("Extractor init with spaCy failed (%s), using regex-only", e)
+            _extractor = IntelligenceExtractor(use_spacy=False)
     return _extractor
 
 
