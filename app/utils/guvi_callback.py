@@ -137,6 +137,9 @@ def generate_agent_notes(
     if extracted_intel.get("phishing_links"):
         items = extracted_intel["phishing_links"]
         intel_items.append(f"{len(items)} phishing link(s)")
+    if extracted_intel.get("email_addresses"):
+        items = extracted_intel["email_addresses"]
+        intel_items.append(f"{len(items)} email address(es): {', '.join(items[:3])}")
 
     if intel_items:
         notes_parts.append(f"Extracted intelligence: {'; '.join(intel_items)}")
@@ -278,6 +281,7 @@ def send_final_result_to_guvi(
     messages: List[Dict],
     scam_indicators: List[str] = None,
     agent_notes: str = None,
+    engagement_duration_seconds: int = 0,
 ) -> bool:
     """
     Send final result to GUVI evaluation endpoint.
@@ -294,25 +298,22 @@ def send_final_result_to_guvi(
         messages: Full conversation history
         scam_indicators: Optional list of detected scam indicators
         agent_notes: Optional pre-generated agent notes
+        engagement_duration_seconds: Duration of engagement in seconds
         
     Returns:
         True if callback was successful, False otherwise
     """
-    # Check if callback is enabled
     if not settings.GUVI_CALLBACK_ENABLED:
         logger.info("GUVI callback disabled, skipping")
         return True
     
-    # Get callback URL from settings or use default
     callback_url = settings.GUVI_CALLBACK_URL or DEFAULT_GUVI_CALLBACK_URL
     
-    # Generate suspicious keywords
     suspicious_keywords = extract_suspicious_keywords(
         messages,
         scam_indicators or [],
     )
     
-    # Generate agent notes if not provided
     if not agent_notes:
         agent_notes = generate_agent_notes(
             messages,
@@ -323,6 +324,7 @@ def send_final_result_to_guvi(
     # Build payload in GUVI's expected format (camelCase)
     payload = {
         "sessionId": session_id,
+        "status": "success",
         "scamDetected": scam_detected,
         "totalMessagesExchanged": total_messages,
         "extractedIntelligence": {
@@ -330,7 +332,12 @@ def send_final_result_to_guvi(
             "upiIds": extracted_intel.get("upi_ids", []),
             "phishingLinks": extracted_intel.get("phishing_links", []),
             "phoneNumbers": extracted_intel.get("phone_numbers", []),
+            "emailAddresses": extracted_intel.get("email_addresses", []),
             "suspiciousKeywords": suspicious_keywords,
+        },
+        "engagementMetrics": {
+            "engagementDurationSeconds": engagement_duration_seconds,
+            "totalMessagesExchanged": total_messages,
         },
         "agentNotes": agent_notes,
     }

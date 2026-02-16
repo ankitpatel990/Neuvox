@@ -115,6 +115,10 @@ class ExtractedIntelligence(BaseModel):
         default_factory=list,
         description="Extracted phishing/suspicious URLs",
     )
+    email_addresses: List[str] = Field(
+        default_factory=list,
+        description="Extracted email addresses",
+    )
     suspicious_keywords: List[str] = Field(
         default_factory=list,
         description="Suspicious keywords detected in scam messages",

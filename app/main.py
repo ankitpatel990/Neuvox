@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 import time
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -152,6 +152,26 @@ app.add_middleware(
 
 # Include Phase 1 API routes
 app.include_router(router)
+
+# Route aliases for flexible URL submission to GUVI
+# These forward to the same handler as /api/v1/honeypot/engage
+from app.api.endpoints import engage_honeypot
+from app.api.auth import verify_api_key
+
+app.add_api_route(
+    "/detect",
+    engage_honeypot,
+    methods=["POST"],
+    dependencies=[Depends(verify_api_key)],
+    include_in_schema=False,
+)
+app.add_api_route(
+    "/honeypot",
+    engage_honeypot,
+    methods=["POST"],
+    dependencies=[Depends(verify_api_key)],
+    include_in_schema=False,
+)
 
 # Conditionally include Phase 2 voice routes (opt-in, default disabled)
 if getattr(settings, "PHASE_2_ENABLED", False):

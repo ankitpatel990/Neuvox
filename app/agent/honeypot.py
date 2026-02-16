@@ -239,6 +239,7 @@ class HoneypotAgent:
                 "ifsc_codes": [],
                 "phone_numbers": [],
                 "phishing_links": [],
+                "email_addresses": [],
             }
         
         # Generate response - pass current intel so we don't repeat questions
@@ -619,6 +620,7 @@ class HoneypotAgent:
                 "ifsc_codes": [],
                 "phone_numbers": [],
                 "phishing_links": [],
+                "email_addresses": [],
             }
             confidence = 0.0
         
@@ -786,6 +788,7 @@ class HoneypotAgent:
                 "ifsc_codes": [],
                 "phone_numbers": [],
                 "phishing_links": [],
+                "email_addresses": [],
             },
             "extraction_confidence": 0.0,
             "strategy": "build_trust",
