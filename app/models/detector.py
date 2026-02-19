@@ -87,6 +87,19 @@ class ScamDetector:
             # Authority impersonation
             "police", "arrest", "court", "legal", "investigation",
             "warrant", "fine", "penalty", "department",
+            # Utility/Bill scams
+            "electricity", "electric bill", "power bill", "power cut",
+            "disconnection", "utility", "gas bill", "water bill",
+            "pending bill", "overdue", "outstanding dues",
+            # Job/Employment scams
+            "job offer", "work from home", "earn from home", "hiring",
+            "salary", "employment opportunity",
+            # Tax scams
+            "income tax", "tax notice", "tax department", "it department",
+            # Tech support scams
+            "tech support", "computer virus", "microsoft support",
+            # Government scheme scams
+            "government scheme", "subsidy", "pm scheme", "govt scheme",
             # Urgency triggers
             "urgent", "immediately", "now", "today", "expire", "last chance",
             "limited time", "hurry", "before", "deadline",

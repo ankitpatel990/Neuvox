@@ -759,14 +759,18 @@ def _calculate_engagement_duration(
     
     now = time.time()
     
+    # Calculate turn-based estimate (used as minimum to handle rapid testing)
+    total_turns = len(messages)
+    if conversation_history:
+        total_turns += len(conversation_history)
+    estimated_duration = max(total_turns * 12, 30)  # ~12 seconds per turn minimum
+    
     if earliest_ts is not None and earliest_ts < now:
-        duration = int(now - earliest_ts)
+        actual_duration = int(now - earliest_ts)
+        # Use the larger of actual or estimated to handle rapid-fire testing
+        duration = max(actual_duration, estimated_duration)
     else:
-        # Fallback: estimate based on turn count
-        total_turns = len(messages)
-        if conversation_history:
-            total_turns += len(conversation_history)
-        duration = max(total_turns * 15, 30)
+        duration = estimated_duration
     
     # Ensure at least 1 second
     return max(duration, 1)

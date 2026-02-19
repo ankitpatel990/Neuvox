@@ -105,6 +105,33 @@ SCAM_PERSONA_MAPPING: Dict[str, str] = {
     "trading": "eager",
     "stock": "eager",
     
+    # Utility/Bill scams - confused, worried about disconnection
+    "electricity": "confused",
+    "electricity_bill": "confused",
+    "power_bill": "confused",
+    "utility": "confused",
+    "water_bill": "confused",
+    "gas_bill": "confused",
+    
+    # Job scams - eager for employment
+    "job": "eager",
+    "employment": "eager",
+    "work_from_home": "eager",
+    
+    # Tax scams - confused about legal matters
+    "income_tax": "confused",
+    "tax": "confused",
+    "tax_notice": "confused",
+    
+    # Government scheme scams - eager for benefits
+    "govt_scheme": "eager",
+    "government_scheme": "eager",
+    "subsidy": "eager",
+    
+    # Refund scams - eager to get money back
+    "refund": "eager",
+    "cashback": "eager",
+    
     # Generic/Unknown - default to confused
     "unknown": "confused",
     "other": "confused",

@@ -47,6 +47,8 @@ class ScamType(Enum):
     COURIER_CUSTOMS = "courier_customs"
     TELECOM_DISCONNECT = "telecom_disconnect"
     TECH_SUPPORT = "tech_support"
+    ELECTRICITY_BILL = "electricity_bill"
+    UTILITY_SCAM = "utility_scam"
     
     # Investment Scams
     INVESTMENT_FRAUD = "investment_fraud"
@@ -252,6 +254,45 @@ SCAM_TYPE_PATTERNS: Dict[ScamType, Dict] = {
         "persona": "confused",
         "threat_level": "medium",
     },
+    ScamType.ELECTRICITY_BILL: {
+        "keywords_en": [
+            "electricity", "electricity bill", "power bill", "electric bill",
+            "power disconnection", "electricity disconnection", "power cut",
+            "pending bill", "overdue bill", "outstanding dues", "unpaid bill",
+            "electricity department", "power supply", "meter reading",
+            "pay immediately", "electricity connection", "bill payment",
+        ],
+        "keywords_hi": [
+            "बिजली", "बिजली बिल", "बिजली कटौती", "बिजली विभाग",
+            "बकाया बिल", "बिजली कनेक्शन",
+        ],
+        "patterns": [
+            r"electric(ity)?\s*(bill|connection|supply|department)",
+            r"power\s*(bill|cut|disconnect|supply)",
+            r"(pending|overdue|outstanding|unpaid)\s*(bill|dues|amount)",
+            r"(pay|clear)\s*(immediately|now|today).{0,20}(bill|dues)",
+            r"(bill|dues)\s*(pending|overdue|outstanding)",
+        ],
+        "weight": 1.0,
+        "persona": "confused",
+        "threat_level": "medium",
+    },
+    ScamType.UTILITY_SCAM: {
+        "keywords_en": [
+            "utility bill", "water bill", "gas bill", "municipal",
+            "corporation", "service disconnection", "utility department",
+        ],
+        "keywords_hi": [
+            "पानी बिल", "गैस बिल", "नगर निगम",
+        ],
+        "patterns": [
+            r"(utility|water|gas)\s*(bill|connection|supply)",
+            r"(municipal|corporation).{0,15}(bill|dues|notice)",
+        ],
+        "weight": 0.9,
+        "persona": "confused",
+        "threat_level": "medium",
+    },
     ScamType.JOB_OFFER: {
         "keywords_en": [
             "job", "employment", "hiring", "vacancy", "offer letter",
@@ -352,6 +393,8 @@ SCAM_PERSONA_MAP: Dict[ScamType, str] = {
     ScamType.BANK_VERIFICATION: "confused",
     ScamType.COURIER_CUSTOMS: "eager",
     ScamType.TELECOM_DISCONNECT: "confused",
+    ScamType.ELECTRICITY_BILL: "confused",
+    ScamType.UTILITY_SCAM: "confused",
     ScamType.JOB_OFFER: "eager",
     ScamType.WORK_FROM_HOME: "eager",
     ScamType.REFUND_SCAM: "eager",

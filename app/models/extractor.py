@@ -104,12 +104,19 @@ class IntelligenceExtractor:
             "ifsc_codes": r"\b[A-Za-z]{4}0[A-Za-z0-9]{6}\b",
 
             # Phone numbers: Indian mobile format with optional +91
-            # Word boundary at start prevents matching inside longer numbers
-            "phone_numbers": r"(?<!\d)(?:\+91[\s\-]?)?(?:0)?[6-9]\d{9}(?!\d)",
+            # Supports various formats: +91-9876543210, 98765 43210, (91) 9876543210
+            # Matches phone-like patterns; validation done in _normalize_phone_numbers
+            "phone_numbers": (
+                r"(?<!\d)"
+                r"(?:\+?91[\s\-\.\(\)]*)?(?:0)?"  # Optional +91/91 prefix with separators
+                r"[6-9][\d\s\-\.]{9,13}"          # 10 digits with optional separators
+                r"(?!\d)"
+            ),
 
-            # Phishing links: HTTP/HTTPS URLs and common short-URL domains
+            # Phishing links: HTTP/HTTPS URLs, www. URLs, and short-URL domains
             "phishing_links": (
-                r"https?://[^\s<>\"\'{}|\\^`\[\]]+"
+                r"https?://[^\s<>\"\'{}|\\^`\[\]]+"                      # Standard URLs
+                r"|(?:www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}[^\s<>\"\']*"  # www. URLs without http
                 r"|(?:bit\.ly|tinyurl\.com|goo\.gl|t\.co|is\.gd)/[^\s<>\"\'{}|\\^`\[\]]+"
             ),
         }

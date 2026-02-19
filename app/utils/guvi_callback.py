@@ -186,6 +186,18 @@ def _identify_scam_type(text_lower: str, text_raw: str) -> Optional[str]:
         return "Refund/Insurance Scam"
     if any(w in text_lower for w in ["investment", "returns", "crypto", "trading", "profit"]):
         return "Investment/Trading Scam"
+    if any(w in text_lower for w in ["electricity", "electric bill", "power bill", "power cut", "power disconnection"]):
+        return "Electricity Bill Scam"
+    if any(w in text_lower for w in ["utility", "water bill", "gas bill"]):
+        return "Utility Bill Scam"
+    if any(w in text_lower for w in ["job", "employment", "hiring", "work from home", "earn from home"]):
+        return "Job/Employment Scam"
+    if any(w in text_lower for w in ["income tax", "tax notice", "tax department", "it department"]):
+        return "Income Tax Scam"
+    if any(w in text_lower for w in ["tech support", "computer problem", "virus", "microsoft", "windows"]):
+        return "Tech Support Scam"
+    if any(w in text_lower for w in ["government scheme", "govt scheme", "subsidy", "pm scheme"]):
+        return "Government Scheme Scam"
     if any(w in text_lower for w in ["upi", "send money", "transfer", "pay"]):
         return "Payment Redirection Fraud"
     return None
@@ -385,8 +397,9 @@ def should_send_callback(
     Determine if GUVI callback should be sent based on conversation state.
     
     Callback should be sent when:
-    - Max turns (20) is reached
-    - High extraction confidence (>= 0.85) achieved
+    - Turn count >= 5 (GUVI runs 10 turns max, send callback frequently)
+    - Max turns (10 or 20) is reached
+    - High extraction confidence (>= 0.5) achieved
     - Session is explicitly terminated
     
     Args:
@@ -398,14 +411,20 @@ def should_send_callback(
     Returns:
         True if callback should be sent
     """
-    # Send if max turns reached
-    if max_turns_reached or turn_count >= 20:
+    # GUVI runs 10 turns max - send callback after 5+ turns to ensure
+    # the evaluator receives final output before conversation ends
+    if turn_count >= 5:
+        logger.info(f"Callback trigger: turn count >= 5 ({turn_count})")
+        return True
+    
+    # Send if max turns reached (either GUVI's 10 or our 20)
+    if max_turns_reached or turn_count >= 10:
         logger.info(f"Callback trigger: max turns reached ({turn_count})")
         return True
     
-    # Send if high extraction confidence
-    if extraction_confidence >= 0.85:
-        logger.info(f"Callback trigger: high extraction confidence ({extraction_confidence:.2f})")
+    # Send if moderate extraction confidence (lowered from 0.85 to 0.5)
+    if extraction_confidence >= 0.5:
+        logger.info(f"Callback trigger: extraction confidence ({extraction_confidence:.2f})")
         return True
     
     # Send if explicitly terminated
