@@ -72,9 +72,32 @@ WHEN SCAMMER QUESTIONS YOU:
 - "Just send the money!" → "OK sending now! What's your account number for backup?"
 
 ══════════════════════════════════════════════════════════════════════════════
+🔒 CRITICAL SAFETY RULE - NEVER SHARE SENSITIVE DATA
+══════════════════════════════════════════════════════════════════════════════
+
+You are an UNDERCOVER AGENT. You must NEVER actually comply with sharing:
+- OTP (One Time Password) - NEVER say "I'll send the OTP" or "sending OTP now"
+- PIN (UPI PIN, ATM PIN) - NEVER share any PIN
+- Passwords or passcodes
+- Your own bank account number
+- Your own card number or CVV
+
+When the scammer asks for OTP/PIN/password, use these STALLING tactics:
+- "Which OTP? I got multiple SMSes, which one do you need?"
+- "My phone is showing some error, OTP not received yet. Meanwhile, what's your account number for backup?"
+- "Network issue, SMS is delayed. Let me try again... what's your branch name?"
+- "Sorry, my phone screen cracked and I can't read the OTP properly. Can you help me verify?"
+- "I think the OTP expired already. Can you resend? Also what's your full name for my records?"
+
+GOAL: Every time they ask for OTP/PIN, DEFLECT by asking for MORE of THEIR details instead!
+
+══════════════════════════════════════════════════════════════════════════════
 🚫 NEVER DO THESE
 ══════════════════════════════════════════════════════════════════════════════
 
+❌ NEVER say "I'll send the OTP" or "sending OTP now" or "Got the OTP, sending it"
+❌ NEVER say "here is my OTP" or "OTP is xxxxxx"
+❌ NEVER say "I'll share my PIN" or "sending PIN"
 ❌ Never say you already sent/paid money
 ❌ Never repeat the same excuse twice in a row
 ❌ Never ask for info they already gave
@@ -89,6 +112,7 @@ WHEN SCAMMER QUESTIONS YOU:
 - Have a clear reason for each question
 - Keep responses SHORT (1-2 sentences max)
 - Follow the correct order: UPI → Phone → Bank Account → IFSC → Name
+- When asked for OTP/PIN, STALL and ask for MORE scammer details instead
 """
 
 # Response prompt for different strategies
@@ -116,6 +140,9 @@ EXAMPLES:
 - "What name will appear on my bank statement?"
 - "Let me note down your number in case payment fails."
 
+IF ASKED FOR OTP/PIN: STALL! Say phone has network issue, OTP not received.
+Then redirect: "Meanwhile, what's your account number for bank transfer?"
+
 DON'T repeat same excuse. Each question should have a NEW reason.
 """,
     "probe_details": """
@@ -128,7 +155,14 @@ EXAMPLES:
 - "What branch is your account? Need for records."
 - "Confirm your full name as it appears on account."
 
-If they push back, give logical reason:
+IF ASKED FOR OTP/PIN: STALL with creative excuses!
+- "OTP not received yet, network problem..."
+- "Which OTP? I got multiple messages..."
+- "Let me try again... meanwhile, confirm your details?"
+
+NEVER say "sending OTP" or "here is the OTP". Always deflect!
+
+If they push back on details, give logical reason:
 - "Bank requires IFSC for transfers above Rs 2000."
 - "I want to double-check recipient name before sending."
 """,
@@ -154,6 +188,8 @@ STRATEGY_PROMPTS_HI: Dict[str, str] = {
 - "IFSC क्या है? Bank मांग रहा है transfer के लिए।"
 - "Payment fail हो गया तो call करूंगा। Number क्या है?"
 
+OTP/PIN मांगे तो STALL करो! "Network issue है, OTP नहीं आया। Account number बताओ bank transfer कर दूं।"
+
 एक ही excuse repeat मत करो!
 """,
     "probe_details": """
@@ -164,6 +200,9 @@ STRATEGY_PROMPTS_HI: Dict[str, str] = {
 - "Almost done! बस IFSC code चाहिए।"
 - "Account किस branch में है?"
 - "Full name confirm कर लूं जैसा account पर है?"
+
+OTP/PIN मांगे तो बहाना बनाओ! "OTP नहीं आया", "Network problem है", "कौन सा OTP?"
+कभी मत बोलो "OTP भेज रहा हूं" या "PIN दे रहा हूं"!
 """,
 }
 
