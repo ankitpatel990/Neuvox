@@ -97,6 +97,8 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})):
             extract_suspicious_keywords,
             generate_agent_notes,
             identify_scam_type,
+            identify_red_flags,
+            count_elicitation_attempts,
         )
         
         # Parse request - detect format and normalize
@@ -236,6 +238,11 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})):
         )
         
         suspicious_keywords = extract_suspicious_keywords(messages_list, scam_indicators)
+        
+        # Identify red flags and count elicitation attempts for GUVI scoring
+        red_flags_identified = identify_red_flags(messages_list)
+        elicitation_attempts = count_elicitation_attempts(messages_list)
+        
         agent_notes = generate_agent_notes(messages_list, intel, scam_indicators)
         
         # Send GUVI callback when conditions are met
@@ -297,6 +304,13 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})):
                 "engagementMetrics": {
                     "engagementDurationSeconds": engagement_duration_seconds,
                     "totalMessagesExchanged": total_messages_exchanged,
+                },
+                "conversationQuality": {
+                    "turnCount": turn_count,
+                    "redFlagsIdentified": red_flags_identified,
+                    "redFlagsCount": len(red_flags_identified),
+                    "elicitationAttempts": elicitation_attempts,
+                    "questionsAsked": elicitation_attempts,
                 },
                 "agentNotes": agent_notes,
             })

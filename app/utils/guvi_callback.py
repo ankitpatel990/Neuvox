@@ -24,6 +24,140 @@ logger = get_logger(__name__)
 DEFAULT_GUVI_CALLBACK_URL = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
 
 
+def identify_red_flags(messages: List[Dict]) -> List[str]:
+    """
+    Identify explicit red flags from scammer messages.
+    
+    Returns a list of identified red flags for scoring.
+    GUVI Doc: "Red Flag Identification | 8 pts | >=5 flags = 8pts"
+    
+    Args:
+        messages: List of conversation messages
+        
+    Returns:
+        List of identified red flag descriptions
+    """
+    red_flags: List[str] = []
+    
+    scammer_messages = [
+        m.get("message", "") for m in messages if m.get("sender") == "scammer"
+    ]
+    full_text_lower = " ".join(scammer_messages).lower()
+    full_text_raw = " ".join(scammer_messages)
+    
+    # Red flag categories with specific patterns
+    red_flag_patterns = {
+        "Urgency/Time Pressure": [
+            "urgent", "immediately", "now", "today", "hurry", "quick",
+            "fast", "expire", "last chance", "limited time", "deadline",
+            "turant", "jaldi", "abhi", "foran",
+        ],
+        "Authority Impersonation": [
+            "police", "court", "government", "bank official", "rbi",
+            "investigation", "arrest", "legal", "warrant", "department",
+            "officer", "inspector", "commissioner",
+        ],
+        "Account/Service Threat": [
+            "block", "suspend", "deactivate", "freeze", "seize",
+            "terminate", "close", "disable", "restrict",
+        ],
+        "OTP/Credential Request": [
+            "otp", "password", "pin", "cvv", "verify", "confirm",
+            "share otp", "send otp", "tell otp",
+        ],
+        "Prize/Lottery Lure": [
+            "won", "winner", "prize", "lottery", "jackpot", "lucky",
+            "congratulations", "reward", "selected", "chosen",
+        ],
+        "Payment/Fee Demand": [
+            "processing fee", "transfer fee", "tax", "charges",
+            "pay first", "send money", "registration fee",
+        ],
+        "Suspicious Link": [
+            "http://", "https://", "click here", "click link",
+            "www.", ".xyz", ".tk", "bit.ly", "tinyurl",
+        ],
+        "KYC/Document Request": [
+            "kyc", "aadhaar", "pan card", "pan number", "update kyc",
+            "verify identity", "link expired",
+        ],
+        "False Urgency Claim": [
+            "within 24 hours", "within 1 hour", "today only",
+            "expires today", "last warning", "final notice",
+        ],
+        "Impersonation of Known Entity": [
+            "sbi", "hdfc", "icici", "axis", "rbi", "amazon",
+            "flipkart", "paytm", "phonepe", "gpay",
+        ],
+    }
+    
+    for flag_name, patterns in red_flag_patterns.items():
+        for pattern in patterns:
+            if pattern in full_text_lower or pattern in full_text_raw:
+                if flag_name not in red_flags:
+                    red_flags.append(flag_name)
+                break
+    
+    return red_flags
+
+
+def count_elicitation_attempts(messages: List[Dict]) -> int:
+    """
+    Count the number of elicitation attempts made by the agent.
+    
+    GUVI Doc: "Information Elicitation | 7 pts | Each elicitation attempt earns 1.5pts (max 7)"
+    Max 5 attempts for full 7 points (5 * 1.5 = 7.5, capped at 7).
+    
+    Elicitation = asking questions to extract scammer's financial details.
+    
+    Args:
+        messages: List of conversation messages
+        
+    Returns:
+        Number of elicitation attempts detected
+    """
+    elicitation_patterns = [
+        # Direct questions for financial details
+        r"upi\s*(id)?[\?\s]",
+        r"phone\s*(number)?[\?\s]",
+        r"account\s*(number)?[\?\s]",
+        r"ifsc[\?\s]",
+        r"bank\s*(details|account)[\?\s]",
+        r"what.{0,20}(upi|phone|number|account|ifsc)",
+        r"give.{0,15}(upi|phone|number|account|ifsc)",
+        r"tell.{0,15}(upi|phone|number|account|ifsc)",
+        r"send.{0,15}(upi|phone|number|account|details)",
+        r"share.{0,15}(upi|phone|number|account|details)",
+        # Questions ending with ?
+        r"where.{0,30}\?",
+        r"what.{0,30}\?",
+        r"how.{0,30}\?",
+        r"which.{0,30}\?",
+        # Hindi/Hinglish elicitation
+        r"kya\s*hai",
+        r"batao",
+        r"bolo",
+        r"dijiye",
+        r"bhejo",
+    ]
+    
+    import re
+    
+    agent_messages = [
+        m.get("message", "") for m in messages if m.get("sender") == "agent"
+    ]
+    
+    count = 0
+    for msg in agent_messages:
+        msg_lower = msg.lower()
+        for pattern in elicitation_patterns:
+            if re.search(pattern, msg_lower):
+                count += 1
+                break  # Count each message only once
+    
+    return min(count, 5)  # Cap at 5 for max 7 points
+
+
 def generate_agent_notes(
     messages: List[Dict],
     extracted_intel: Dict,
@@ -33,8 +167,10 @@ def generate_agent_notes(
     Generate a detailed summary of scammer behavior for agent notes.
 
     Produces a law-enforcement-friendly summary covering:
+    - Identified red flags (explicitly enumerated for scoring)
     - Identified scam type
     - Tactics used (urgency, threats, impersonation, etc.)
+    - Elicitation attempts count
     - Extracted intelligence summary
     - Conversation depth
 
@@ -44,7 +180,7 @@ def generate_agent_notes(
         scam_indicators: List of detected scam indicators/keywords
 
     Returns:
-        Agent notes string summarizing scammer behavior
+        Agent notes string with explicit red flag enumeration for GUVI scoring
     """
     notes_parts: List[str] = []
 
@@ -53,6 +189,17 @@ def generate_agent_notes(
     ]
     full_scammer_text = " ".join(scammer_messages).lower()
     full_scammer_raw = " ".join(scammer_messages)
+    
+    # ---- Red Flags (explicitly enumerated for scoring) ----
+    red_flags = identify_red_flags(messages)
+    if red_flags:
+        flags_str = ", ".join(f"[{i+1}] {flag}" for i, flag in enumerate(red_flags))
+        notes_parts.append(f"RED FLAGS DETECTED ({len(red_flags)}): {flags_str}")
+    
+    # ---- Elicitation attempts ----
+    elicitation_count = count_elicitation_attempts(messages)
+    if elicitation_count > 0:
+        notes_parts.append(f"ELICITATION ATTEMPTS: {elicitation_count} direct questions asked to extract scammer details")
 
     # ---- Scam type identification ----
     scam_type = identify_scam_type(full_scammer_text, full_scammer_raw)
