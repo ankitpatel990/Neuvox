@@ -55,7 +55,7 @@ def generate_agent_notes(
     full_scammer_raw = " ".join(scammer_messages)
 
     # ---- Scam type identification ----
-    scam_type = _identify_scam_type(full_scammer_text, full_scammer_raw)
+    scam_type = identify_scam_type(full_scammer_text, full_scammer_raw)
     if scam_type:
         notes_parts.append(f"Scam type: {scam_type}")
 
@@ -140,6 +140,15 @@ def generate_agent_notes(
     if extracted_intel.get("email_addresses"):
         items = extracted_intel["email_addresses"]
         intel_items.append(f"{len(items)} email address(es): {', '.join(items[:3])}")
+    if extracted_intel.get("case_ids"):
+        items = extracted_intel["case_ids"]
+        intel_items.append(f"{len(items)} case/reference ID(s): {', '.join(items[:3])}")
+    if extracted_intel.get("policy_numbers"):
+        items = extracted_intel["policy_numbers"]
+        intel_items.append(f"{len(items)} policy number(s): {', '.join(items[:3])}")
+    if extracted_intel.get("order_numbers"):
+        items = extracted_intel["order_numbers"]
+        intel_items.append(f"{len(items)} order/transaction ID(s): {', '.join(items[:3])}")
 
     if intel_items:
         notes_parts.append(f"Extracted intelligence: {'; '.join(intel_items)}")
@@ -154,7 +163,7 @@ def generate_agent_notes(
     return "Scam engagement completed. Limited intelligence extracted."
 
 
-def _identify_scam_type(text_lower: str, text_raw: str) -> Optional[str]:
+def identify_scam_type(text_lower: str, text_raw: str = "") -> Optional[str]:
     """
     Identify the primary scam type from scammer text.
 
@@ -333,11 +342,17 @@ def send_final_result_to_guvi(
             scam_indicators or [],
         )
     
+    # Identify scam type from messages
+    scammer_messages = [m.get("message", "") for m in messages if m.get("sender") == "scammer"]
+    scammer_text = " ".join(scammer_messages)
+    scam_type = identify_scam_type(scammer_text.lower(), scammer_text)
+    
     # Build payload in GUVI's expected format (camelCase)
     payload = {
         "sessionId": session_id,
         "status": "success",
         "scamDetected": scam_detected,
+        "scamType": scam_type or "Financial Fraud",
         "totalMessagesExchanged": total_messages,
         "extractedIntelligence": {
             "bankAccounts": extracted_intel.get("bank_accounts", []),
@@ -345,6 +360,9 @@ def send_final_result_to_guvi(
             "phishingLinks": extracted_intel.get("phishing_links", []),
             "phoneNumbers": extracted_intel.get("phone_numbers", []),
             "emailAddresses": extracted_intel.get("email_addresses", []),
+            "caseIds": extracted_intel.get("case_ids", []),
+            "policyNumbers": extracted_intel.get("policy_numbers", []),
+            "orderNumbers": extracted_intel.get("order_numbers", []),
             "suspiciousKeywords": suspicious_keywords,
         },
         "engagementMetrics": {

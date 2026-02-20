@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+*.manifest
+*.spec
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Tests (not needed in production image)
+tests/
+pytest.ini
+conftest.py
+
+# Development files
+requirements-dev.txt
+requirements-local.txt
+requirements-phase2.txt
+*.md
+!README.md
+
+# Scripts (optional, remove if needed for setup)
+# scripts/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Documentation
+docs/
+*.pptx
+*.pdf
+
+# Miscellaneous
+*.log
+*.tmp
+*.bak
+Thumbs.db
+.DS_Store

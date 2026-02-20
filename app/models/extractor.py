@@ -119,6 +119,27 @@ class IntelligenceExtractor:
                 r"|(?:www\.)[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}[^\s<>\"\']*"  # www. URLs without http
                 r"|(?:bit\.ly|tinyurl\.com|goo\.gl|t\.co|is\.gd)/[^\s<>\"\'{}|\\^`\[\]]+"
             ),
+
+            # Case/Reference IDs: Various formats like Case-12345, Ref#ABC123, Complaint ID: 12345
+            "case_ids": (
+                r"(?:case|reference|ref|ticket|complaint|tracking|incident|sr|service[\s\-]?request)"
+                r"[\s#:\-\.]*(?:id|no|number)?[\s#:\-\.]*"
+                r"([A-Z0-9][\w\-]{4,19})"
+            ),
+
+            # Policy Numbers: Insurance/banking policy identifiers
+            "policy_numbers": (
+                r"(?:policy|pol|insurance|coverage|plan)[\s#:\-\.]*"
+                r"(?:no|number|id)?[\s#:\-\.]*"
+                r"([A-Z0-9][\w\-]{5,19})"
+            ),
+
+            # Order Numbers: E-commerce/transaction order IDs
+            "order_numbers": (
+                r"(?:order|ord|transaction|txn|invoice|receipt|booking|confirmation)"
+                r"[\s#:\-\.]*(?:id|no|number)?[\s#:\-\.]*"
+                r"([A-Z0-9][\w\-]{5,19})"
+            ),
         }
         
         # Devanagari to ASCII digit mapping
@@ -174,11 +195,15 @@ class IntelligenceExtractor:
             "phone_numbers": [],
             "phishing_links": [],
             "email_addresses": [],
+            "case_ids": [],
+            "policy_numbers": [],
+            "order_numbers": [],
         }
         
         # Extract using regex patterns
         for entity_type, pattern in self.patterns.items():
-            matches = re.findall(pattern, text, re.IGNORECASE if entity_type == "ifsc_codes" else 0)
+            flags = re.IGNORECASE if entity_type in ("ifsc_codes", "case_ids", "policy_numbers", "order_numbers") else 0
+            matches = re.findall(pattern, text, flags)
             intel[entity_type] = list(set(matches))
         
         # Validate and filter each entity type
@@ -187,6 +212,9 @@ class IntelligenceExtractor:
         intel["ifsc_codes"] = self._validate_ifsc_codes(intel["ifsc_codes"])
         intel["phone_numbers"] = self._normalize_phone_numbers(intel["phone_numbers"])
         intel["phishing_links"] = self._validate_phishing_links(intel["phishing_links"])
+        intel["case_ids"] = self._validate_reference_ids(intel["case_ids"])
+        intel["policy_numbers"] = self._validate_reference_ids(intel["policy_numbers"])
+        intel["order_numbers"] = self._validate_reference_ids(intel["order_numbers"])
         
         # Extract email addresses (must run after UPI validation to exclude UPI IDs)
         intel["email_addresses"] = self._extract_email_addresses(text, intel["upi_ids"])
@@ -210,6 +238,9 @@ class IntelligenceExtractor:
             f"{len(intel['ifsc_codes'])} IFSCs, "
             f"{len(intel['phone_numbers'])} phones, "
             f"{len(intel['phishing_links'])} links, "
+            f"{len(intel['case_ids'])} cases, "
+            f"{len(intel['policy_numbers'])} policies, "
+            f"{len(intel['order_numbers'])} orders, "
             f"confidence={confidence:.2f}"
         )
 
@@ -271,7 +302,46 @@ class IntelligenceExtractor:
             "phone_numbers": [],
             "phishing_links": [],
             "email_addresses": [],
+            "case_ids": [],
+            "policy_numbers": [],
+            "order_numbers": [],
         }
+
+    def _validate_reference_ids(self, ref_ids: List[str]) -> List[str]:
+        """
+        Validate case IDs, policy numbers, and order numbers.
+        
+        Filters out common false positives like short strings,
+        all-numeric short codes, or common words.
+        
+        Args:
+            ref_ids: List of potential reference IDs
+            
+        Returns:
+            List of validated reference IDs
+        """
+        validated = []
+        
+        common_false_positives = {
+            "id", "no", "number", "please", "help", "sir", "madam",
+            "yes", "ok", "okay", "thanks", "hello", "hi", "bye",
+        }
+        
+        for ref_id in ref_ids:
+            ref_clean = ref_id.strip().upper()
+            
+            if len(ref_clean) < 5:
+                continue
+            
+            if ref_clean.lower() in common_false_positives:
+                continue
+            
+            if len(set(ref_clean.replace("-", ""))) <= 2:
+                continue
+            
+            validated.append(ref_clean)
+        
+        return list(set(validated))
     
     def _convert_devanagari_digits(self, text: str) -> str:
         """
@@ -625,6 +695,7 @@ class IntelligenceExtractor:
         Calculate extraction confidence score.
         
         Weights reflect importance of each entity type for scam detection.
+        Weights are normalized to sum to 1.0 for proper scoring.
         
         Args:
             intel: Extracted intelligence dictionary
@@ -633,12 +704,15 @@ class IntelligenceExtractor:
             Confidence score between 0.0 and 1.0
         """
         weights = {
-            "upi_ids": 0.25,          # UPI IDs are strong indicators
-            "bank_accounts": 0.25,     # Bank accounts are strong indicators
-            "ifsc_codes": 0.15,        # IFSC adds validity to bank accounts
+            "upi_ids": 0.20,           # UPI IDs are strong indicators
+            "bank_accounts": 0.20,     # Bank accounts are strong indicators
+            "ifsc_codes": 0.10,        # IFSC adds validity to bank accounts
             "phone_numbers": 0.10,     # Phone numbers are weaker indicators
             "phishing_links": 0.10,    # Phishing links are suspicious
-            "email_addresses": 0.15,   # Email addresses are moderate indicators
+            "email_addresses": 0.10,   # Email addresses are moderate indicators
+            "case_ids": 0.07,          # Case/reference IDs
+            "policy_numbers": 0.07,    # Policy numbers
+            "order_numbers": 0.06,     # Order/transaction IDs
         }
         
         score = 0.0

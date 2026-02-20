@@ -119,6 +119,18 @@ class ExtractedIntelligence(BaseModel):
         default_factory=list,
         description="Extracted email addresses",
     )
+    case_ids: List[str] = Field(
+        default_factory=list,
+        description="Extracted case/reference/ticket IDs",
+    )
+    policy_numbers: List[str] = Field(
+        default_factory=list,
+        description="Extracted insurance/banking policy numbers",
+    )
+    order_numbers: List[str] = Field(
+        default_factory=list,
+        description="Extracted order/transaction/invoice IDs",
+    )
     suspicious_keywords: List[str] = Field(
         default_factory=list,
         description="Suspicious keywords detected in scam messages",
