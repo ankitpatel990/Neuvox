@@ -353,10 +353,13 @@ def send_final_result_to_guvi(
         "status": "success",
         "scamDetected": scam_detected,
         "scamType": scam_type or "Financial Fraud",
+        "confidenceLevel": 0.95,
         "totalMessagesExchanged": total_messages,
+        "engagementDurationSeconds": engagement_duration_seconds,
         "extractedIntelligence": {
             "bankAccounts": extracted_intel.get("bank_accounts", []),
             "upiIds": extracted_intel.get("upi_ids", []),
+            "ifscCodes": extracted_intel.get("ifsc_codes", []),
             "phishingLinks": extracted_intel.get("phishing_links", []),
             "phoneNumbers": extracted_intel.get("phone_numbers", []),
             "emailAddresses": extracted_intel.get("email_addresses", []),

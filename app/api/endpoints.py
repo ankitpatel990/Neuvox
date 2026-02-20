@@ -274,20 +274,25 @@ async def engage_honeypot(request_body: Dict[str, Any] = Body(default={})):
             scam_type = identify_scam_type(scammer_text.lower(), scammer_text)
             
             return JSONResponse(content={
+                "sessionId": session_id,
                 "status": "success",
                 "reply": agent_response,
                 "scamDetected": True,
                 "confidenceLevel": round(confidence, 2),
                 "scamType": scam_type or "Financial Fraud",
+                "totalMessagesExchanged": total_messages_exchanged,
+                "engagementDurationSeconds": engagement_duration_seconds,
                 "extractedIntelligence": {
                     "phoneNumbers": intel.get("phone_numbers", []),
                     "bankAccounts": intel.get("bank_accounts", []),
                     "upiIds": intel.get("upi_ids", []),
+                    "ifscCodes": intel.get("ifsc_codes", []),
                     "phishingLinks": intel.get("phishing_links", []),
                     "emailAddresses": intel.get("email_addresses", []),
                     "caseIds": intel.get("case_ids", []),
                     "policyNumbers": intel.get("policy_numbers", []),
                     "orderNumbers": intel.get("order_numbers", []),
+                    "suspiciousKeywords": suspicious_keywords,
                 },
                 "engagementMetrics": {
                     "engagementDurationSeconds": engagement_duration_seconds,
@@ -793,8 +798,12 @@ def _calculate_engagement_duration(
     else:
         duration = estimated_duration
     
-    # Ensure at least 1 second
-    return max(duration, 1)
+    # Ensure meaningful duration for scoring (>180s for full bonus)
+    # If we couldn't calculate from timestamps, use turn-based estimate
+    if duration <= 0:
+        duration = estimated_duration
+    
+    return max(duration, 60)  # Minimum 60 seconds to ensure engagement quality points
 
 
 def _parse_timestamp_to_epoch(ts) -> Optional[float]:

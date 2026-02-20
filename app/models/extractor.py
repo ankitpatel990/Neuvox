@@ -105,12 +105,12 @@ class IntelligenceExtractor:
 
             # Phone numbers: Indian mobile format with optional +91
             # Supports various formats: +91-9876543210, 98765 43210, (91) 9876543210
-            # Matches phone-like patterns; validation done in _normalize_phone_numbers
+            # Handle various hyphen/dash characters (ASCII hyphen, en-dash, em-dash, etc.)
             "phone_numbers": (
-                r"(?<!\d)"
-                r"(?:\+?91[\s\-\.\(\)]*)?(?:0)?"  # Optional +91/91 prefix with separators
-                r"[6-9][\d\s\-\.]{9,13}"          # 10 digits with optional separators
-                r"(?!\d)"
+                r"(?:\+91[\-\u2010\u2011\u2012\u2013\u2014\s]?|91[\-\s]?|0)?"  # Optional prefix
+                r"[6-9]\d{9}"                          # 10 digits starting with 6-9
+                r"|"                                   # OR
+                r"\+91[\-\u2010\u2011\u2012\u2013\u2014\s][6-9]\d{9}"  # +91-XXXXXXXXXX format
             ),
 
             # Phishing links: HTTP/HTTPS URLs, www. URLs, and short-URL domains
@@ -522,7 +522,8 @@ class IntelligenceExtractor:
         for phone in phone_numbers:
             original = phone.strip()
             
-            cleaned = re.sub(r"[\s\-]", "", phone)
+            # Remove spaces and all types of hyphens/dashes (ASCII hyphen, en-dash, em-dash, etc.)
+            cleaned = re.sub(r"[\s\-\u2010\u2011\u2012\u2013\u2014]", "", phone)
             
             if cleaned.startswith("+91"):
                 cleaned = cleaned[3:]
